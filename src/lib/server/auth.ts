@@ -25,8 +25,15 @@ export type User = {
  *  layout/page loaders that degrade gracefully. */
 export async function getUser(locals: App.Locals): Promise<User | null> {
 	if (!locals.user) return null;
-	const { accounts, active } = await getReviewAccountsState(locals.user.id);
-	return { userId: locals.user.id, reviewAccounts: accounts, activeAccount: active };
+	// The layout load and the page load both resolve the user within a single
+	// navigation request; memoize the Mongo-backed lookup on `locals` so it runs
+	// once per request instead of once per loader.
+	return (locals.userPromise ??= resolveUser(locals.user.id));
+}
+
+async function resolveUser(id: string): Promise<User> {
+	const { accounts, active } = await getReviewAccountsState(id);
+	return { userId: id, reviewAccounts: accounts, activeAccount: active };
 }
 
 /** Route guard for authenticated endpoints: 503 if auth is unconfigured, 401

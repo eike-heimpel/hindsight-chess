@@ -204,10 +204,13 @@ export const load: PageServerLoad = async ({ locals, depends, url }) => {
 	if (!active) return EMPTY;
 	const primary = active.username;
 
-	const settings = await getUserSettings(user.userId);
-
 	const accountsSet = new Set([active.username.toLowerCase()]);
-	const games = await listGamesForAccounts([active]);
+	// Independent of each other (settings keys on userId, games on the account),
+	// so fetch them together rather than chaining two round-trips.
+	const [settings, games] = await Promise.all([
+		getUserSettings(user.userId),
+		listGamesForAccounts([active])
+	]);
 	const analyses = await getAnalysesByIds(
 		games.map((g) => ({ source: g.source, gameId: g.gameId }))
 	);

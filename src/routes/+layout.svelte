@@ -1,7 +1,7 @@
 <script lang="ts">
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
-	import { page } from '$app/state';
+	import { page, navigating } from '$app/state';
 	import { afterNavigate, goto } from '$app/navigation';
 	import { authClient } from '$lib/client/authClient';
 
@@ -35,6 +35,13 @@
 		if (e.key === 'Escape') navOpen = false;
 	}}
 />
+
+<!-- Navigation feedback. Server loads gate page swaps on a round-trip, so a
+     click can sit for a second with no visible change; this bar says "heard
+     you, working on it" the instant you click. -->
+{#if navigating.to}
+	<div class="nav-progress" aria-hidden="true"></div>
+{/if}
 
 {#if showChrome}
 	<!-- Backdrop: a click anywhere outside the open menu closes it. -->
@@ -93,3 +100,37 @@
 {/if}
 
 {@render children()}
+
+<style>
+	/* Indeterminate top bar — we don't know how long the load takes, so it
+	   animates rather than fills to a percentage. Above all chrome (nav is z-50). */
+	.nav-progress {
+		position: fixed;
+		inset: 0 0 auto 0;
+		height: 2px;
+		z-index: 100;
+		overflow: hidden;
+		background: color-mix(in srgb, var(--brand) 22%, transparent);
+	}
+	.nav-progress::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		width: 40%;
+		background: var(--brand);
+		animation: nav-progress-slide 1.1s ease-in-out infinite;
+	}
+	@keyframes nav-progress-slide {
+		0% {
+			transform: translateX(-100%);
+		}
+		100% {
+			transform: translateX(350%);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.nav-progress::before {
+			animation-duration: 2.2s;
+		}
+	}
+</style>
