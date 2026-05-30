@@ -1,6 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { requireParentProfile } from '$lib/server/profileSession';
+import { requireUser } from '$lib/server/auth';
 import { isValidFen } from '$lib/chess/rules';
 import type { EngineLine } from '$lib/engine/engine';
 import { buildExplainFacts, type ReviewExplainRequest } from '$lib/review/explain';
@@ -9,17 +9,17 @@ import { getExplanation, saveExplanation } from '$lib/server/reviewExplanations'
 import { makeReviewExplainer } from '$lib/server/review-explainer-factory';
 
 /**
- * POST /api/review/explain — grounded LLM annotation for one move. Parent-only,
- * Mongo-gated. The browser sends the engine lines (trusted, per the review
- * trust model in docs/review.md); the server re-derives all chess.js facts
+ * POST /api/review/explain — grounded LLM annotation for one move. Mongo-gated.
+ * The browser sends the engine lines (trusted, per the review trust model in
+ * docs/review.md); the server re-derives all chess.js facts
  * canonically via `buildExplainFacts`, then calls the explainer. Cached by
  * {source, gameId, ply} so a repeat ask re-serves without an LLM call.
  */
 const UCI = /^[a-h][1-8][a-h][1-8][qrbn]?$/;
 const SOURCES: ReviewSource[] = ['chesscom', 'lichess', 'upload'];
 
-export const POST: RequestHandler = async ({ cookies, request }) => {
-	await requireParentProfile(cookies);
+export const POST: RequestHandler = async ({ locals, request }) => {
+	await requireUser(locals);
 
 	const parsed = parseRequest(await request.json().catch(() => null));
 	if ('errors' in parsed) throw error(400, `Invalid request: ${parsed.errors.join('; ')}`);

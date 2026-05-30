@@ -51,3 +51,28 @@ export function getMongoDbName(): string {
 export function useMongo(): boolean {
 	return !!env.MONGODB_URI && !!env.MONGODB_DB_NAME;
 }
+
+export function getBetterAuthSecret(): string {
+	const secret = env.BETTER_AUTH_SECRET;
+	if (!secret) {
+		throw new Error('BETTER_AUTH_SECRET is not set. Add it to .env (the user manages this file).');
+	}
+	return secret;
+}
+
+export function getBetterAuthUrl(): string {
+	const url = env.BETTER_AUTH_URL;
+	if (!url) {
+		throw new Error('BETTER_AUTH_URL is not set. Add it to .env (the user manages this file).');
+	}
+	return url;
+}
+
+/**
+ * Whether Better Auth is configured. Requires Mongo (its store) plus a secret
+ * and base URL. When false the auth seam resolves no user and `hooks.server.ts`
+ * skips wiring the handler — so dev/tests run without auth configured.
+ */
+export function useBetterAuth(): boolean {
+	return useMongo() && !!env.BETTER_AUTH_SECRET && !!env.BETTER_AUTH_URL;
+}

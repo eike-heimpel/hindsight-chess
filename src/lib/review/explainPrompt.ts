@@ -2,11 +2,10 @@ import type { ReviewExplainFacts } from './explain';
 
 /**
  * System + user messages for the review explainer LLM call. English, adult
- * audience — unlike the kid coach, chess terms are allowed. The hard-grounding
- * contract mirrors `spotlightPrompt.ts`: the model may use only the moves,
- * evaluations and facts in the FACTS block, and must cite moves in the SAN it's
- * given. Evals are pawns from the mover's POV so the model never has to flip
- * signs.
+ * audience — chess terms are allowed. Hard-grounding contract: the model may
+ * use only the moves, evaluations and facts in the FACTS block, and must cite
+ * moves in the SAN it's given. Evals are pawns from the mover's POV so the
+ * model never has to flip signs.
  *
  * The coaching is tuned for an improving beginner (~500–1000): the lesson is the
  * concrete, reachable consequence of the move — what it *allows* (the reply line

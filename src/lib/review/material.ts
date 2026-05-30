@@ -1,5 +1,5 @@
 /**
- * Material counting from a FEN — the kid-legible currency. Engine win-% calls a
+ * Material counting from a FEN — the beginner-legible currency. Engine win-% calls a
  * position "winning" whenever a forced line exists (even a mate-in-12 of
  * only-moves); a beginner converts *material*, not evaluations. So the winnable-
  * loss analysis grades opportunity in points up, not centipawns.

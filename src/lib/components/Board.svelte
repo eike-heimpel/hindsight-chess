@@ -20,9 +20,8 @@
 		legalDestinations: Square[];
 		lastMove: { from: Square; to: Square } | null;
 		/** Trajectory overlay for the opponent's refutation after a mistake.
-		 *  The kid sees the post-state via `lastMove`; the arrow shows the
-		 *  path. Don't reuse this for the kid's own moves — that would shade
-		 *  into hint territory. */
+		 *  The player sees the post-state via `lastMove`; the arrow shows the
+		 *  path. */
 		opponentArrow?: { from: Square; to: Square } | null;
 		onSquareClick: (sq: Square) => void;
 		orientation?: 'white' | 'black';

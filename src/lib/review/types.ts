@@ -1,10 +1,7 @@
 /**
  * Core domain types for the game-review tool. Platform-blind: once a game is
  * normalised into `ReviewGame`, nothing downstream knows or cares whether it
- * came from chess.com, lichess, or a pasted PGN.
- *
- * This module is separable by design — it imports shared primitives, but the
- * kid app never imports from `src/lib/review/`. See `docs/review.md`.
+ * came from chess.com, lichess, or a pasted PGN. See `docs/review.md`.
  */
 import type { Side } from '$lib/chess/types';
 
@@ -50,8 +47,7 @@ export type ReviewGame = {
 	moves: ReviewMove[];
 };
 
-/** Boundary error for review ingestion. Kept local to keep the shared
- *  `ErrorKind` (kid app) free of review concerns — separability over reuse. */
+/** Boundary error for review ingestion. */
 export type ReviewError = {
 	kind: 'fetch_failed' | 'not_found' | 'parse_failed';
 	message: string;

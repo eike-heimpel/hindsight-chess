@@ -20,9 +20,9 @@ import { parseDepth, parseScore, parseMultipv, buildPvAndLines } from './uci-par
  * The Worker script and its .wasm sibling are served from /stockfish/, copied
  * out of node_modules by `npm run sync:engine`.
  */
-/** Per-evaluate deadline. Must beat Vercel's 10s budget for the coach route
- *  by enough margin that an LLM call can still follow.  Also long enough for
- *  depth-14 search on weak hardware (the kid's tablet). */
+/** Per-evaluate deadline. Must beat Vercel's 10s budget for the explain route
+ *  by enough margin that an LLM call can still follow. Also long enough for
+ *  depth-14 search on weak hardware. */
 const EVALUATE_TIMEOUT_MS = 7000;
 /** After we send `stop`, give a healthy worker this long to flush a `bestmove`
  *  before we treat the worker as wedged and terminate it. */

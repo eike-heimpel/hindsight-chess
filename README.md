@@ -5,8 +5,7 @@ every move (accuracy + chess.com-style move classification), and â€” on demand â
 ask an LLM to explain a move in plain English, grounded in what the engine
 actually sees.
 
-Extracted from a private chess trainer as a standalone app. The full design and
-module reference lives in [`docs/review.md`](docs/review.md).
+The full design and module reference lives in [`docs/review.md`](docs/review.md).
 
 ## Stack
 

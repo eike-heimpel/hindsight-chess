@@ -1,19 +1,17 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { useMongo } from '$lib/server/env';
-import { getActiveProfile } from '$lib/server/profileSession';
+import { getUser, setUserReviewAccounts, type User } from '$lib/server/auth';
 import { ChessComSource } from '$lib/review/sources/chesscom';
 import { normalize } from '$lib/review/normalize';
 import { listRecentGames, listStoredGameIds, upsertGames } from '$lib/server/reviewGames';
-import { setProfileReviewAccounts, type Profile } from '$lib/server/profiles';
 import type { ReviewGame } from '$lib/review/types';
 
 /**
- * Game-review home: a parent-only tool (the kid app never links here). Lists
- * stored games for one of the active profile's linked chess.com accounts; the
- * `?/sync` action pulls only games newer than what's stored (incremental).
- * `?/addAccount` / `?/removeAccount` manage the links on the profile. English
- * UI — see `docs/review.md`.
+ * Game-review home. Lists stored games for one of the user's linked chess.com
+ * accounts; the `?/sync` action pulls only games newer than what's stored
+ * (incremental). `?/addAccount` / `?/removeAccount` manage the user's linked
+ * accounts. English UI — see `docs/review.md`.
  */
 
 const SYNC_LIMIT = 50;
@@ -46,19 +44,18 @@ const readUsername = (form: FormData) =>
 		.trim()
 		.toLowerCase();
 
-async function requireParent(cookies: Parameters<PageServerLoad>[0]['cookies']): Promise<Profile> {
+async function requireUserOrRedirect(locals: App.Locals): Promise<User> {
 	if (!useMongo()) throw error(503, 'mongo not configured');
-	const profile = await getActiveProfile(cookies);
-	if (!profile) throw redirect(303, '/');
-	if (profile.role !== 'parent') throw redirect(303, '/');
-	return profile;
+	const user = await getUser(locals);
+	if (!user) throw redirect(303, '/');
+	return user;
 }
 
-export const load: PageServerLoad = async ({ cookies, url }) => {
-	const profile = await requireParent(cookies);
-	const linked = profile.reviewAccounts;
-	// A ?user= override lets the parent peek at any account; otherwise default
-	// to the profile's first linked account.
+export const load: PageServerLoad = async ({ locals, url }) => {
+	const user = await requireUserOrRedirect(locals);
+	const linked = user.reviewAccounts;
+	// A ?user= override lets you peek at any account; otherwise default to the
+	// user's first linked account.
 	const requested = url.searchParams.get('user')?.trim().toLowerCase();
 	const account = requested || linked[0] || '';
 	// Present only right after a ?/sync redirect; null otherwise (no banner).
@@ -94,8 +91,8 @@ async function pullAndStore(username: string, opts: { limit: number; knownGameId
 }
 
 export const actions: Actions = {
-	sync: async ({ cookies, request }) => {
-		await requireParent(cookies);
+	sync: async ({ locals, request }) => {
+		await requireUserOrRedirect(locals);
 		const username = readUsername(await request.formData());
 		if (!username) return fail(400, { username: '', message: 'No account to sync.' });
 
@@ -103,8 +100,8 @@ export const actions: Actions = {
 		return pullAndStore(username, { limit: SYNC_LIMIT, knownGameIds });
 	},
 
-	syncAll: async ({ cookies, request }) => {
-		await requireParent(cookies);
+	syncAll: async ({ locals, request }) => {
+		await requireUserOrRedirect(locals);
 		const username = readUsername(await request.formData());
 		if (!username) return fail(400, { username: '', message: 'No account to sync.' });
 
@@ -113,21 +110,21 @@ export const actions: Actions = {
 		return pullAndStore(username, { limit: BACKFILL_LIMIT });
 	},
 
-	addAccount: async ({ cookies, request }) => {
-		const profile = await requireParent(cookies);
+	addAccount: async ({ locals, request }) => {
+		const user = await requireUserOrRedirect(locals);
 		const username = readUsername(await request.formData());
 		if (!username) return fail(400, { username: '', message: 'Enter a chess.com username.' });
 
-		await setProfileReviewAccounts(profile.id, [...profile.reviewAccounts, username]);
+		await setUserReviewAccounts(user.userId, [...user.reviewAccounts, username]);
 		throw redirect(303, `/review?user=${encodeURIComponent(username)}`);
 	},
 
-	removeAccount: async ({ cookies, request }) => {
-		const profile = await requireParent(cookies);
+	removeAccount: async ({ locals, request }) => {
+		const user = await requireUserOrRedirect(locals);
 		const username = readUsername(await request.formData());
-		await setProfileReviewAccounts(
-			profile.id,
-			profile.reviewAccounts.filter((a) => a !== username)
+		await setUserReviewAccounts(
+			user.userId,
+			user.reviewAccounts.filter((a) => a !== username)
 		);
 		throw redirect(303, '/review');
 	}

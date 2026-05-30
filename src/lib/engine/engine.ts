@@ -51,10 +51,8 @@ export type EvaluateOptions = {
 	 *  feel responsive but not thinking forever. */
 	movetimeMs?: number;
 	/** When set, caps engine strength via UCI_LimitStrength + UCI_Elo so the
-	 *  engine plays roughly at this Elo. Used by the Eröffnungspartie opponent
-	 *  so the kid faces principled-but-not-crushing play. Stockfish accepts
-	 *  values roughly in [1320, 3190]; out-of-range values are clamped by
-	 *  Stockfish itself. */
+	 *  engine plays roughly at this Elo. Stockfish accepts values roughly in
+	 *  [1320, 3190]; out-of-range values are clamped by Stockfish itself. */
 	uciElo?: number;
 	/** When > 1, search the top-N lines (UCI `MultiPV`) and return them in
 	 *  `EngineEval.lines`. Used by the game-review explainer to ground an LLM

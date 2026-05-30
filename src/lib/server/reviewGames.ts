@@ -2,9 +2,9 @@ import { collectionAccessor } from './db.ts';
 import type { ReviewGame, ReviewSource } from '$lib/review/types';
 
 /**
- * Server-side store for normalised review games. Own collection (`reviewGames`)
- * so the review tool stays separable from the kid app. Doc shape is `ReviewGame`
- * plus a composite `_id` ("source:gameId") and a lowercased `accounts` array for
+ * Server-side store for normalised review games. Own collection (`reviewGames`).
+ * Doc shape is `ReviewGame` plus a composite `_id` ("source:gameId") and a
+ * lowercased `accounts` array for
  * case-insensitive "games for this player" lookups (chess.com usernames keep
  * their original case in PGN, but users type any case).
  */

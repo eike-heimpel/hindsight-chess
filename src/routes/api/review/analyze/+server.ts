@@ -1,12 +1,12 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { requireParentProfile } from '$lib/server/profileSession';
+import { requireUser } from '$lib/server/auth';
 import { saveAnalysis } from '$lib/server/reviewAnalysis';
 import type { GameAnalysis } from '$lib/review/analysis';
 
-/** Persist a browser-computed game analysis. Parent-only. */
-export const POST: RequestHandler = async ({ cookies, request }) => {
-	await requireParentProfile(cookies);
+/** Persist a browser-computed game analysis. */
+export const POST: RequestHandler = async ({ locals, request }) => {
+	await requireUser(locals);
 
 	const analysis = (await request.json()) as GameAnalysis;
 	if (!analysis?.source || !analysis?.gameId || !Array.isArray(analysis.moves)) {

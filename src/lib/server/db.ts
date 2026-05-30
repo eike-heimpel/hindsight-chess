@@ -17,20 +17,34 @@ function cache(): { value: Cached } {
 	return g[GLOBAL_KEY];
 }
 
-export async function getDb(): Promise<Db> {
+function ensureEntry(): NonNullable<Cached> {
 	const slot = cache();
-	if (slot.value) return slot.value.dbPromise;
+	if (slot.value) return slot.value;
 
 	const client = new MongoClient(getMongoUri(), { maxPoolSize: 5 });
 	const dbPromise = client.connect().then(() => client.db(getMongoDbName()));
 	const entry = { client, dbPromise };
 	slot.value = entry;
 	// Don't poison the cache on a transient connect failure — clear our slot if
-	// it still points at this entry, so the next getDb() retries with a fresh client.
+	// it still points at this entry, so the next call retries with a fresh client.
 	dbPromise.catch(() => {
 		if (cache().value === entry) cache().value = undefined;
 	});
-	return dbPromise;
+	return entry;
+}
+
+export async function getDb(): Promise<Db> {
+	return ensureEntry().dbPromise;
+}
+
+/**
+ * Synchronous Db handle off the shared singleton client. The Node driver
+ * auto-connects on first operation, so this is safe before `connect()` resolves
+ * — used by Better Auth's `mongodbAdapter`, which needs a `Db` synchronously at
+ * construction. Reuses the same client (and pool) as `getDb()`.
+ */
+export function getMongoDb(): Db {
+	return ensureEntry().client.db(getMongoDbName());
 }
 
 /**
