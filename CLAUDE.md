@@ -25,12 +25,15 @@ it first for anything non-trivial. Code wins on any conflict with the doc.
   `src/lib/client/engine.ts` (Engine interface + Stockfish browser/node impls),
   `src/lib/components/Board.svelte`, `src/lib/result.ts`,
   `src/lib/llm/openrouterClient.ts`, and the server infra
-  `src/lib/server/{db,env,profiles}.ts`.
+  `src/lib/server/{db,env}.ts`.
+- **App shell:** `/` is the home (post-game dashboard); `/login` is magic-link
+  sign-in. Auth infra is `src/lib/server/{auth,betterAuth,email}.ts`.
 - **Identity seam:** `src/lib/server/auth.ts` is the single place a request's
   user is resolved (`getUser` / `requireUser` → `User { userId, reviewAccounts }`).
-  Everything keys on `userId`; `profiles.ts` is the storage detail behind it.
-  Single-user phase resolves the sole seeded user — **going multi-user means
-  reimplementing `resolveUser` only**, not touching call sites or the data model.
+  Better Auth resolves the session in `hooks.server.ts` and populates
+  `locals.user`; the seam maps that to the app `User`, and `reviewAccounts.ts` is
+  the storage detail behind the linked chess.com usernames. Everything keys on
+  `userId`; call sites never touch the auth storage shape.
 - **The review feature:** everything under `src/lib/review/`, the review files
   in `src/lib/{server,client}/review*.ts`, and `src/routes/review` +
   `src/routes/api/review`.
@@ -45,8 +48,10 @@ Resolve before exposing this to strangers:
    Note: the game-keyed caches (`reviewGames`, `reviewAnalysis`,
    `reviewExplanations`) are deliberately global so engine/LLM cost dedupes
    across users — the fix is trusting _writes_, not per-user copies.
-2. **Auth.** `auth.ts` is the seam; pick a provider and reimplement `resolveUser`
-   (real signup/session). Library is deliberately deferred — see chat history.
+2. **Auth — wired.** Better Auth with magic-link email (Postmark) is live;
+   `auth.ts` maps the session to `User`, and multi-user works. Still open for
+   strangers: sign-in rate-limiting / abuse, and whether sign-up is open or
+   invite-gated.
 3. **LLM cost.** Every "Explain this move" is an OpenRouter call. Caching by
    `{source,gameId,ply}` helps, but public traffic needs rate limiting / a per-
    user budget.
@@ -54,11 +59,11 @@ Resolve before exposing this to strangers:
 
 ## Open cleanup items
 
-- **Env / DB.** Set `MONGO_*` + the OpenRouter key (see `.env.example`). A fresh
-  DB self-seeds (`ensureSeed` runs lazily), so the app boots clean.
-- `docs/review.md` still reads as a feature doc of a larger app, and `profiles.ts`
-  still carries vestigial `name`/`emoji`/`role` fields from the seed-only model.
-  Both fold into the auth redesign / doc reframe.
+- **Env / DB.** Set `MONGO_*`, the OpenRouter key, and the Better Auth +
+  Postmark vars (see `.env.example`). No seeding — Better Auth creates users on
+  first sign-in.
+- `docs/review.md` still reads as a feature doc of a larger app — folds into a
+  doc reframe.
 
 ## Stack
 

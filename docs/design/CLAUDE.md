@@ -32,6 +32,8 @@ One concept per file, each with a reference header linking the others.
 
 ## Status
 
-Spec only — not yet implemented in `src/routes/layout.css`. Migrating the token
-layer in (and porting `palette.ts` onto it) is the next step once these are
-approved.
+Implemented. The token layer (primitives + semantic dark/light) lives in
+`src/routes/layout.css`, and `src/lib/review/charts/palette.ts` reads the
+semantic tokens (`var(--…)`), so charts theme automatically. The dark neutral
+ramp is a warm stone family (see system.md); board/eval tokens stay cool, and
+`--arrow-best` is the brand violet.
