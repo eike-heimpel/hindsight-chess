@@ -40,6 +40,10 @@
 	let selected = $state(0);
 	const cur = $derived(data.stats[Math.min(selected, Math.max(0, data.stats.length - 1))]);
 
+	/** Which trend badge has its "what is this?" popover open (keyed by card title);
+	 *  null = none. Tap toggles; a tap anywhere else closes it. */
+	let openTip = $state<string | null>(null);
+
 	type View = 'overview' | 'mistakes' | 'matchups';
 	let view = $state<View>('overview');
 	const VIEWS: { id: View; label: string }[] = [
@@ -100,16 +104,36 @@
 
 <svelte:head><title>Review · Stats</title></svelte:head>
 
-{#snippet deltaBadge(d: number, goodUp: boolean, unit: string)}
+<svelte:window onclick={() => (openTip = null)} />
+
+{#snippet deltaBadge(d: number, goodUp: boolean, unit: string, key: string)}
 	{@const good = goodUp ? d >= 0 : d <= 0}
-	<span
-		class="rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums"
-		style="color: {good ? C.good : C.bad}; background: color-mix(in srgb, {good
-			? C.good
-			: C.bad} 12%, transparent);"
-		title="recent games vs. earlier games"
-	>
-		{d > 0 ? '↑' : '↓'}{Math.abs(Math.round(d * 10) / 10)}{unit}
+	<span class="tip-anchor">
+		<button
+			type="button"
+			class="cursor-pointer rounded-full border-0 px-2 py-0.5 text-xs font-semibold tabular-nums"
+			style="color: {good ? C.good : C.bad}; background: color-mix(in srgb, {good
+				? C.good
+				: C.bad} 12%, transparent);"
+			aria-expanded={openTip === key}
+			onclick={(e) => {
+				e.stopPropagation();
+				openTip = openTip === key ? null : key;
+			}}
+		>
+			{d > 0 ? '↑' : '↓'}{Math.abs(Math.round(d * 10) / 10)}{unit}
+		</button>
+		{#if openTip === key}
+			<div class="tip" role="tooltip">
+				<p class="tip-title">Recent vs. earlier</p>
+				<p>
+					We average your most recent games and compare them to your earliest ones — this is the
+					gap. <strong style="color: {good ? C.good : C.bad};"
+						>{good ? 'Green means you’re trending up.' : 'Red means you’re trending down.'}</strong
+					>
+				</p>
+			</div>
+		{/if}
 	</span>
 {/snippet}
 
@@ -122,7 +146,7 @@
 		<div class="mb-1 flex items-start justify-between gap-2">
 			<span class="eyebrow">{cfg.title}</span>
 			{#if t && Math.abs(t.delta) >= 0.05}
-				{@render deltaBadge(t.delta, cfg.goodUp, cfg.unit)}
+				{@render deltaBadge(t.delta, cfg.goodUp, cfg.unit, cfg.title)}
 			{/if}
 		</div>
 		{#if headline != null}
@@ -493,6 +517,35 @@
 		font-weight: 700;
 		line-height: 1.1;
 		font-variant-numeric: tabular-nums;
+	}
+
+	/* Tap-to-explain popover anchored to a trend badge. */
+	.tip-anchor {
+		position: relative;
+		display: inline-flex;
+	}
+	.tip {
+		position: absolute;
+		top: calc(100% + 0.4rem);
+		right: 0;
+		z-index: 30;
+		width: 15rem;
+		max-width: 70vw;
+		padding: 0.6rem 0.7rem;
+		border-radius: 0.6rem;
+		border: 1px solid var(--border);
+		background: var(--surface-2);
+		box-shadow: var(--shadow-1);
+		font-size: 0.75rem;
+		font-weight: 400;
+		line-height: 1.4;
+		text-align: left;
+		color: var(--text-2);
+	}
+	.tip-title {
+		margin-bottom: 0.2rem;
+		font-weight: 600;
+		color: var(--text);
 	}
 
 	/* iOS-style segmented control for the primary time-class axis.
