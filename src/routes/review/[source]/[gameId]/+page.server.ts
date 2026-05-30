@@ -10,7 +10,7 @@ import type { ReviewSource } from '$lib/review/types';
 export const load: PageServerLoad = async ({ locals, params, url }) => {
 	if (!useMongo()) throw error(503, 'mongo not configured');
 	const user = await getUser(locals);
-	if (!user) throw redirect(303, '/');
+	if (!user) throw redirect(303, '/login');
 
 	const source = params.source as ReviewSource;
 	const [game, analysis, explanations] = await Promise.all([

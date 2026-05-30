@@ -103,9 +103,10 @@
 		return { x, y };
 	}
 
-	// A single filled arrow polygon (Lichess-style: straight shaft + triangular
-	// head), in board-square units. The tip lands just inside the to-square so
-	// the move clearly "arrives"; the shaft starts at the from-square centre.
+	// Arrow as a rounded-cap shaft line + a triangular head (not one flat polygon),
+	// in board-square units. The shaft starts a touch off the from-square centre so
+	// its rounded tail lifts cleanly off the origin piece instead of sitting blunt
+	// on top of it; the tip lands just inside the to-square so the move "arrives".
 	let arrowGeom = $derived.by(() => {
 		if (!opponentArrow) return null;
 		const a = squareToXY(opponentArrow.from);
@@ -118,27 +119,26 @@
 		const nx = -uy; // unit normal
 		const ny = ux;
 
-		const shaftW = 0.17;
-		const headW = 0.42;
-		const headL = 0.34;
-		const tipGap = 0.12; // stop just short of the to-square centre
+		const shaftW = 0.16;
+		const headW = 0.4;
+		const headL = 0.32;
+		const tipGap = 0.1; // stop just short of the to-square centre
+		const startGap = 0.22; // lift the rounded tail off the origin piece
 
+		const sx = a.x + ux * startGap;
+		const sy = a.y + uy * startGap;
 		const tipX = b.x - ux * tipGap;
 		const tipY = b.y - uy * tipGap;
 		const baseX = tipX - ux * headL;
 		const baseY = tipY - uy * headL;
 
 		const p = (x: number, y: number) => `${x.toFixed(4)},${y.toFixed(4)}`;
-		const points = [
-			p(a.x + nx * shaftW * 0.5, a.y + ny * shaftW * 0.5),
-			p(baseX + nx * shaftW * 0.5, baseY + ny * shaftW * 0.5),
-			p(baseX + nx * headW * 0.5, baseY + ny * headW * 0.5),
+		const head = [
 			p(tipX, tipY),
-			p(baseX - nx * headW * 0.5, baseY - ny * headW * 0.5),
-			p(baseX - nx * shaftW * 0.5, baseY - ny * shaftW * 0.5),
-			p(a.x - nx * shaftW * 0.5, a.y - ny * shaftW * 0.5)
+			p(baseX + nx * headW * 0.5, baseY + ny * headW * 0.5),
+			p(baseX - nx * headW * 0.5, baseY - ny * headW * 0.5)
 		].join(' ');
-		return { points };
+		return { sx, sy, baseX, baseY, head, shaftW };
 	});
 </script>
 
@@ -162,9 +162,12 @@
 				aria-label={piece ? `${sq} – ${pieceLabel(piece)}` : sq}
 				class="relative flex items-center justify-center transition-colors duration-100 {light
 					? 'bg-[var(--board-light)]'
-					: 'bg-[var(--board-dark)]'} {isSel ? 'bg-[var(--board-select)]' : ''} {isLast && !isSel
-					? 'bg-[var(--board-last)]'
-					: ''}"
+					: 'bg-[var(--board-dark)]'}"
+				style={isSel
+					? 'background-image: linear-gradient(var(--board-select), var(--board-select))'
+					: isLast
+						? 'background-image: linear-gradient(var(--board-last), var(--board-last))'
+						: ''}
 				onclick={() => onSquareClick(sq)}
 			>
 				{#if piece}
@@ -211,13 +214,25 @@
 			viewBox="0 0 8 8"
 			aria-hidden="true"
 		>
-			<polygon
-				points={arrowGeom.points}
-				fill="currentColor"
-				stroke="currentColor"
-				stroke-width="0.03"
-				stroke-linejoin="round"
-			/>
+			<!-- One group opacity so the shaft/head overlap doesn't double-darken. -->
+			<g opacity="0.82">
+				<line
+					x1={arrowGeom.sx}
+					y1={arrowGeom.sy}
+					x2={arrowGeom.baseX}
+					y2={arrowGeom.baseY}
+					stroke="currentColor"
+					stroke-width={arrowGeom.shaftW}
+					stroke-linecap="round"
+				/>
+				<polygon
+					points={arrowGeom.head}
+					fill="currentColor"
+					stroke="currentColor"
+					stroke-width="0.06"
+					stroke-linejoin="round"
+				/>
+			</g>
 		</svg>
 	{/if}
 </div>

@@ -47,7 +47,7 @@ const readUsername = (form: FormData) =>
 async function requireUserOrRedirect(locals: App.Locals): Promise<User> {
 	if (!useMongo()) throw error(503, 'mongo not configured');
 	const user = await getUser(locals);
-	if (!user) throw redirect(303, '/');
+	if (!user) throw redirect(303, '/login');
 	return user;
 }
 

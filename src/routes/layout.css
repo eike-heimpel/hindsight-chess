@@ -59,21 +59,24 @@
 :root {
 	color-scheme: dark;
 
-	--bg: #0a0b0d;
-	--surface-1: #141619;
-	--surface-2: #1c1f23;
-	--surface-3: #24272c;
-	--border: #2a2e34;
-	--border-strong: #3a3f47;
-	--text: #f2f3f5;
-	--text-2: #a8adb5;
-	--text-muted: #6b7178;
+	/* Warm-neutral dark ramp (stone family) — same lightness steps as a cool
+	   blue-gray, hue rotated warm so the surface reads "room with a light on,"
+	   not "console." Unifies with the already-warm (stone) light theme below. */
+	--bg: #0e0c0a;
+	--surface-1: #181613;
+	--surface-2: #221f1a;
+	--surface-3: #2c2823;
+	--border: #353029;
+	--border-strong: #46403a;
+	--text: #f5f3f0;
+	--text-2: #b4aea6;
+	--text-muted: #79726a;
 	--brand: #8b7bf2;
 	--brand-hover: #9d8ff5;
-	--brand-tint: #1b1830;
+	--brand-tint: #1f1933;
 	--good: #34d399;
 	--bad: #fb7185;
-	--draw: #9aa0a8;
+	--draw: #a3a099;
 	--warn: #fbbf24;
 
 	/* Move-class ramp — monotonic good→bad, one scale. Dark runs lighter. */
@@ -89,7 +92,10 @@
 	--board-select: rgb(252 211 77 / 0.55);
 	--board-last: rgb(253 230 138 / 0.45);
 	--board-marker: rgb(10 11 13 / 0.28);
-	--arrow-best: var(--good);
+	/* Best-move arrow uses the brand accent (a third hue), not result-green —
+	   keeps it from colliding with win/loss semantics. Drawn translucent so the
+	   board reads through it (see Board.svelte). */
+	--arrow-best: var(--brand);
 
 	/* Eval bar — white's win% rises (light) over black's share (dark). */
 	--eval-white: #e8eaed;

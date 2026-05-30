@@ -25,21 +25,24 @@ discipline that keeps dark/light and re-skins free.
 ```css
 /* layer 2: semantic, dark default */
 :root {
-	--bg: #0a0b0d;
-	--surface-1: #141619;
-	--surface-2: #1c1f23;
-	--surface-3: #24272c;
-	--border: #2a2e34;
-	--border-strong: #3a3f47;
-	--text: #f2f3f5;
-	--text-2: #a8adb5;
-	--text-muted: #6b7178;
+	/* Warm-neutral (stone) dark ramp — hue rotated warm off a cool blue-gray at
+	   the same lightness steps, so dark reads cozy not cold and unifies with the
+	   warm (stone) light theme. Board/eval tokens stay deliberately cool. */
+	--bg: #0e0c0a;
+	--surface-1: #181613;
+	--surface-2: #221f1a;
+	--surface-3: #2c2823;
+	--border: #353029;
+	--border-strong: #46403a;
+	--text: #f5f3f0;
+	--text-2: #b4aea6;
+	--text-muted: #79726a;
 	--brand: #8b7bf2;
 	--brand-hover: #9d8ff5;
-	--brand-tint: #1b1830;
+	--brand-tint: #1f1933;
 	--good: #34d399;
 	--bad: #fb7185;
-	--draw: #9aa0a8;
+	--draw: #a3a099;
 }
 [data-theme='light'] {
 	--bg: #fafaf9;
@@ -97,7 +100,8 @@ run lighter than the current light `-600`s for contrast:
 (supersedes `winRateColor`'s hard 50% split where a gradient reads better).
 
 **Board & analysis:** `--board-light`, `--board-dark`, `--board-last` (last move),
-`--board-select`, `--board-check`, `--arrow-best` (= `--good`), `--arrow-played`.
+`--board-select`, `--board-check`, `--arrow-best` (= `--brand`, a third hue so the
+best-move arrow never collides with result-green; drawn translucent), `--arrow-played`.
 **Eval bar:** `--eval-white`, `--eval-black`. Starting board (cool, premium):
 light `#b9c0c9` / dark `#566070` in dark theme — tunable.
 

@@ -39,11 +39,11 @@
 	}
 </script>
 
-<svelte:head><title>Game Review</title></svelte:head>
+<svelte:head><title>Your games</title></svelte:head>
 
 <main class="mx-auto max-w-3xl px-4 py-8">
 	<header class="mb-6 flex items-baseline justify-between gap-4">
-		<h1 class="text-2xl font-bold text-text">Game Review</h1>
+		<h1 class="text-2xl font-bold text-text">Your games</h1>
 		<nav class="flex items-center gap-4 text-sm">
 			<a href="/review/stats" class="font-medium text-text-2 hover:text-text">Stats</a>
 			<a href="/" class="text-text-muted hover:text-text-2">← Home</a>

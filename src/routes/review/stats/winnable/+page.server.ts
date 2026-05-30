@@ -15,7 +15,7 @@ import { computeReviewStats } from '$lib/review/stats/compute';
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!useMongo()) throw error(503, 'mongo not configured');
 	const user = await getUser(locals);
-	if (!user) throw redirect(303, '/');
+	if (!user) throw redirect(303, '/login');
 
 	const accounts = user.reviewAccounts;
 	const games = await listGamesForAccounts(accounts);
