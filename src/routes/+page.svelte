@@ -4,7 +4,8 @@
 	 * as /review's game links. */
 	import { onMount } from 'svelte';
 	import { invalidate } from '$app/navigation';
-	import { fade } from 'svelte/transition';
+	import { fade, fly } from 'svelte/transition';
+	import { cubicOut } from 'svelte/easing';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import { analyzeGame } from '$lib/client/reviewAnalysis';
 	import { fetchGame } from '$lib/client/reviewStats';
@@ -151,6 +152,21 @@
 		return s.map((v, i) => `${(i / (n - 1)) * 100},${((100 - v) / 100) * 30}`).join(' ');
 	});
 
+	// The peak win-% point, as percentages over the chart, for an in-graph label.
+	// (The SVG is preserveAspectRatio="none", so we overlay HTML instead of <text>.)
+	const peakMarker = $derived.by(() => {
+		const s = view?.spark;
+		if (!s || s.length < 2 || view?.peakWin == null) return null;
+		let bi = 0;
+		for (let i = 1; i < s.length; i++) if (s[i] > s[bi]) bi = i;
+		const x = (bi / (s.length - 1)) * 100; // % across width
+		const y = 100 - s[bi]; // % down (spark is 0..100, win up top)
+		// Keep the label inside the card: left-align near the start, right-align
+		// near the end, centered otherwise.
+		const tx = x < 15 ? '0' : x > 85 ? '-100%' : '-50%';
+		return { x, y, value: s[bi], tx };
+	});
+
 	function gameHref(source: string, gameId: string): string {
 		return `/review/${source}/${gameId}?me=${encodeURIComponent(data.account ?? '')}`;
 	}
@@ -290,7 +306,19 @@
 		return (node: SVGPolylineElement) => {
 			if (!animate || hasAnimated.has(key)) return;
 			hasAnimated.add(key);
-			const len = node.getTotalLength();
+			// preserveAspectRatio="none" + non-scaling-stroke means the dash is measured in
+			// screen pixels, while getTotalLength() is in viewBox units — the mismatch makes
+			// the dash repeat into gaps. Compute the rendered pixel length of the polyline.
+			const rect = (node.ownerSVGElement ?? node).getBoundingClientRect();
+			const sx = rect.width / 100;
+			const sy = rect.height / 30;
+			const pts = node.points;
+			let len = 0;
+			for (let i = 1; i < pts.numberOfItems; i++) {
+				const a = pts.getItem(i - 1);
+				const b = pts.getItem(i);
+				len += Math.hypot((b.x - a.x) * sx, (b.y - a.y) * sy);
+			}
 			node.style.transition = 'none';
 			node.style.strokeDasharray = `${len}`;
 			node.style.strokeDashoffset = `${len}`;
@@ -426,11 +454,17 @@
 					href={gameHref(view.source, view.gameId)}
 					class="group block transition-opacity hover:opacity-90"
 				>
-					{#key view.headline}
-						<p class="mt-4 text-xl leading-snug font-medium text-text" in:fade={{ duration: 500 }}>
-							{view.headline}
-						</p>
-					{/key}
+					<div class="mt-4 grid">
+						{#key view.headline}
+							<p
+								class="col-start-1 row-start-1 text-xl leading-snug font-medium text-text"
+								in:fly={{ y: 10, duration: 500, delay: 120, easing: cubicOut }}
+								out:fade={{ duration: 200 }}
+							>
+								{view.headline}
+							</p>
+						{/key}
+					</div>
 
 					{#if isAnalyzing}
 						<div class="mt-5 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
@@ -440,33 +474,49 @@
 							></div>
 						</div>
 					{:else if sparkPoints}
-						<svg
-							class="mt-5 h-14 w-full"
-							viewBox="0 0 100 30"
-							preserveAspectRatio="none"
-							aria-hidden="true"
-						>
-							<line
-								x1="0"
-								y1="15"
-								x2="100"
-								y2="15"
-								stroke="var(--border)"
-								stroke-width="0.5"
-								stroke-dasharray="2 2"
-								vector-effect="non-scaling-stroke"
-							/>
-							<polyline
-								{@attach drawLine(currentKey ?? '', view.animateGraph)}
-								points={sparkPoints}
-								fill="none"
-								stroke="var(--brand)"
-								stroke-width="1.5"
-								stroke-linejoin="round"
-								stroke-linecap="round"
-								vector-effect="non-scaling-stroke"
-							/>
-						</svg>
+						<div class="relative mt-5">
+							<svg
+								class="block h-14 w-full"
+								viewBox="0 0 100 30"
+								preserveAspectRatio="none"
+								aria-hidden="true"
+							>
+								<line
+									x1="0"
+									y1="15"
+									x2="100"
+									y2="15"
+									stroke="var(--border)"
+									stroke-width="0.5"
+									stroke-dasharray="2 2"
+									vector-effect="non-scaling-stroke"
+								/>
+								<polyline
+									{@attach drawLine(currentKey ?? '', view.animateGraph)}
+									points={sparkPoints}
+									fill="none"
+									stroke="var(--brand)"
+									stroke-width="1.5"
+									stroke-linejoin="round"
+									stroke-linecap="round"
+									vector-effect="non-scaling-stroke"
+								/>
+							</svg>
+							{#if peakMarker}
+								<span
+									class="absolute h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand ring-2 ring-surface-1"
+									style="left: {peakMarker.x}%; top: {peakMarker.y}%;"
+								></span>
+								<span
+									class="absolute whitespace-nowrap text-[11px] font-medium text-text-2"
+									style="left: {peakMarker.x}%; top: calc({peakMarker.y}% - 0.45rem); transform: translate({peakMarker.tx}, -100%);"
+								>
+									Peak <span class="font-semibold text-text tabular-nums"
+										>{peakMarker.value.toFixed(0)}%</span
+									>
+								</span>
+							{/if}
+						</div>
 					{/if}
 
 					<div class="mt-4 flex items-center gap-5 text-sm">
@@ -479,13 +529,6 @@
 								<span class="text-text-2" transition:fade={{ duration: 400 }}
 									>Accuracy <span class="font-semibold text-text tabular-nums"
 										>{view.accuracy.toFixed(0)}%</span
-									></span
-								>
-							{/if}
-							{#if view.peakWin != null}
-								<span class="text-text-2" transition:fade={{ duration: 400 }}
-									>Peak <span class="font-semibold text-text tabular-nums"
-										>{view.peakWin.toFixed(0)}%</span
 									></span
 								>
 							{/if}
