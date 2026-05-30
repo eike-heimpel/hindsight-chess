@@ -219,12 +219,7 @@
 <div class="min-h-screen" style="background: var(--bg);">
 	<main class="mx-auto max-w-6xl px-4 py-5">
 		<header class="mb-4">
-			<a
-				href="/review{data.me ? `?user=${data.me}` : ''}"
-				class="text-sm font-medium transition-colors"
-				style="color: {C.muted};">← Back to games</a
-			>
-			<div class="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+			<div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
 				<h1 class="text-2xl font-bold tracking-tight" style="color: {C.ink};">
 					{game.white.username}<span class="px-1.5 font-normal" style="color: {C.muted};">vs</span
 					>{game.black.username}
@@ -232,9 +227,16 @@
 						>{resultLabel}</span
 					>
 				</h1>
-				{#if analysis}
-					<span class="chip-meta">Analyzed · depth {analysis.depth}</span>
-				{/if}
+				<div class="flex items-baseline gap-4">
+					{#if analysis}
+						<span class="chip-meta">Analyzed · depth {analysis.depth}</span>
+					{/if}
+					<a
+						href="/review{data.me ? `?user=${data.me}` : ''}"
+						class="text-sm font-medium transition-colors"
+						style="color: {C.muted};">← Games</a
+					>
+				</div>
 			</div>
 			<p class="mt-0.5 text-sm" style="color: {C.muted};">
 				{game.opening ?? 'Unknown opening'} · <span class="capitalize">{game.timeClass}</span>
