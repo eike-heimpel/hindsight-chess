@@ -48,36 +48,42 @@
 	{/if}
 
 	<nav
-		class="fixed top-3 left-4 z-50 flex flex-col items-start gap-1.5"
+		class="fixed top-3 left-4 z-50"
 		style="top: max(0.75rem, env(safe-area-inset-top)); left: max(1rem, env(safe-area-inset-left));"
 	>
 		{#if navOpen}
-			<!-- Home sits where the trigger was, so clicking again lands here. -->
-			<a
-				href="/"
-				class="rounded-md bg-surface-1/70 px-2.5 py-1 text-sm font-semibold tracking-wide text-text-2 backdrop-blur-sm transition-colors hover:text-text"
+			<!-- A solid, readable panel. Home is the first row so it sits where the
+			     trigger was — click the wordmark twice and you land on it. -->
+			<div
+				class="min-w-44 overflow-hidden rounded-lg border border-border bg-surface-2 p-1 shadow-xl shadow-black/40"
 			>
-				Home
-			</a>
-			<a
-				href="/review/stats"
-				class="rounded-md bg-surface-1/70 px-2.5 py-1 text-sm font-medium text-text-2 backdrop-blur-sm transition-colors hover:text-text"
-			>
-				Stats
-			</a>
-			<a
-				href="/review"
-				class="rounded-md bg-surface-1/70 px-2.5 py-1 text-sm font-medium text-text-2 backdrop-blur-sm transition-colors hover:text-text"
-			>
-				Account
-			</a>
-			<button
-				type="button"
-				onclick={logout}
-				class="rounded-md bg-surface-1/70 px-2.5 py-1 text-sm font-medium text-text-muted backdrop-blur-sm transition-colors hover:text-text"
-			>
-				Log out
-			</button>
+				<a
+					href="/"
+					class="block rounded-md px-3 py-1.5 text-sm font-semibold text-text transition-colors hover:bg-surface-3"
+				>
+					Home
+				</a>
+				<a
+					href="/review/stats"
+					class="block rounded-md px-3 py-1.5 text-sm font-medium text-text-2 transition-colors hover:bg-surface-3 hover:text-text"
+				>
+					Stats
+				</a>
+				<a
+					href="/review"
+					class="block rounded-md px-3 py-1.5 text-sm font-medium text-text-2 transition-colors hover:bg-surface-3 hover:text-text"
+				>
+					Account
+				</a>
+				<div class="my-1 border-t border-border"></div>
+				<button
+					type="button"
+					onclick={logout}
+					class="block w-full rounded-md px-3 py-1.5 text-left text-sm font-medium text-text-muted transition-colors hover:bg-surface-3 hover:text-text"
+				>
+					Log out
+				</button>
+			</div>
 		{:else}
 			<button
 				type="button"
