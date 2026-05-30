@@ -216,7 +216,7 @@
 	</svg>
 {/snippet}
 
-<div class="min-h-screen" style="background: #fafaf9;">
+<div class="min-h-screen" style="background: var(--bg);">
 	<main class="mx-auto max-w-6xl px-4 py-5">
 		<header class="mb-4">
 			<a
@@ -260,14 +260,17 @@
 						{#if whiteWin !== null}
 							<div
 								class="relative w-2.5 shrink-0 overflow-hidden rounded-full"
-								style="background: {C.ink};"
+								style="background: var(--eval-black);"
 								aria-hidden="true"
 							>
 								<div
 									class="absolute inset-x-0 bottom-0 transition-[height] duration-200"
-									style="height: {whiteWin}%; background: #fafaf9;"
+									style="height: {whiteWin}%; background: var(--eval-white);"
 								></div>
-								<div class="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-stone-500/60"></div>
+								<div
+									class="absolute inset-x-0 top-1/2 h-px -translate-y-1/2"
+									style="background: var(--eval-mid);"
+								></div>
 							</div>
 						{/if}
 						<div class="min-w-0 flex-1">
@@ -314,17 +317,14 @@
 
 				<!-- Move verdict + explanation -->
 				{#if currentMove}
+					{@const cc = CLASS_COLOR[currentMove.classification]}
 					<div
 						class="verdict mt-4"
-						style="background: {CLASS_COLOR[currentMove.classification]}12; border-color: {CLASS_COLOR[
-							currentMove.classification
-						]}33;"
+						style="background: color-mix(in srgb, {cc} 10%, transparent); border-color: color-mix(in srgb, {cc} 22%, transparent);"
 					>
-						<span
-							class="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-							style="background: {CLASS_COLOR[currentMove.classification]};"
+						<span class="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style="background: {cc};"
 						></span>
-						<span class="font-semibold" style="color: {CLASS_COLOR[currentMove.classification]};"
+						<span class="font-semibold" style="color: {cc};"
 							>{CLASS_LABEL[currentMove.classification]}</span
 						>
 						<span class="text-sm" style="color: {C.body};">
@@ -393,7 +393,7 @@
 					</div>
 				{:else if cacheNote}
 					<div class="card py-2.5">
-						<p class="text-xs" style="color: #b45309;">{cacheNote}</p>
+						<p class="text-xs" style="color: var(--warn);">{cacheNote}</p>
 					</div>
 				{/if}
 
@@ -457,26 +457,26 @@
 <style>
 	.card {
 		border-radius: 1rem;
-		border: 1px solid #ede9e6;
-		background: #fff;
+		border: 1px solid var(--border);
+		background: var(--surface-1);
 		padding: 1rem;
-		box-shadow: 0 1px 2px rgb(28 25 23 / 0.04);
+		box-shadow: var(--shadow-1);
 	}
 	.eyebrow {
 		font-size: 0.7rem;
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
-		color: #a8a29e;
+		color: var(--text-muted);
 	}
 
 	.chip-meta {
 		border-radius: 9999px;
-		background: #f0eeec;
+		background: var(--surface-2);
 		padding: 0.2rem 0.7rem;
 		font-size: 0.7rem;
 		font-weight: 600;
-		color: #78716c;
+		color: var(--text-2);
 	}
 
 	.chip-color {
@@ -484,22 +484,22 @@
 		height: 0.8rem;
 		width: 0.8rem;
 		border-radius: 9999px;
-		border: 1px solid #d6d3d1;
+		border: 1px solid var(--border-strong);
 	}
 	.chip-w {
-		background: #fff;
+		background: var(--piece-white);
 	}
 	.chip-b {
-		background: #44403c;
-		border-color: #44403c;
+		background: var(--piece-black);
+		border-color: var(--piece-black);
 	}
 	.acc-badge {
 		border-radius: 9999px;
-		background: #f5f5f4;
+		background: var(--surface-2);
 		padding: 0.05rem 0.45rem;
 		font-size: 0.7rem;
 		font-weight: 600;
-		color: #57534e;
+		color: var(--text-2);
 	}
 
 	/* Replay controls — grouped pill + a solo flip button */
@@ -508,10 +508,10 @@
 		align-items: center;
 		gap: 0.15rem;
 		border-radius: 9999px;
-		border: 1px solid #e7e5e4;
-		background: #fff;
+		border: 1px solid var(--border);
+		background: var(--surface-1);
 		padding: 0.2rem;
-		box-shadow: 0 1px 2px rgb(28 25 23 / 0.04);
+		box-shadow: var(--shadow-1);
 	}
 	.ctrl {
 		display: inline-flex;
@@ -520,24 +520,24 @@
 		height: 2rem;
 		width: 2rem;
 		border-radius: 9999px;
-		color: #57534e;
+		color: var(--text-2);
 		transition:
-			background 0.12s,
-			color 0.12s;
+			background var(--dur-fast),
+			color var(--dur-fast);
 	}
 	.ctrl:hover {
-		background: #f5f5f4;
-		color: #1c1917;
+		background: var(--surface-2);
+		color: var(--text);
 	}
 	.ctrl:active {
-		background: #e7e5e4;
+		background: var(--surface-3);
 	}
 	.ctrl-count {
 		min-width: 3.5rem;
 		text-align: center;
 		font-size: 0.8rem;
 		font-weight: 600;
-		color: #57534e;
+		color: var(--text-2);
 	}
 	.ctrl-solo {
 		display: inline-flex;
@@ -546,17 +546,17 @@
 		height: 2.4rem;
 		width: 2.4rem;
 		border-radius: 9999px;
-		border: 1px solid #e7e5e4;
-		background: #fff;
-		color: #57534e;
-		box-shadow: 0 1px 2px rgb(28 25 23 / 0.04);
+		border: 1px solid var(--border);
+		background: var(--surface-1);
+		color: var(--text-2);
+		box-shadow: var(--shadow-1);
 		transition:
-			background 0.12s,
-			color 0.12s;
+			background var(--dur-fast),
+			color var(--dur-fast);
 	}
 	.ctrl-solo:hover {
-		background: #f5f5f4;
-		color: #1c1917;
+		background: var(--surface-2);
+		color: var(--text);
 	}
 
 	.verdict {
@@ -570,16 +570,16 @@
 
 	.btn {
 		border-radius: 0.6rem;
-		border: 1px solid #d6d3d1;
-		background: #fff;
+		border: 1px solid var(--border-strong);
+		background: var(--surface-1);
 		padding: 0.5rem 0.9rem;
 		font-size: 0.85rem;
 		font-weight: 600;
-		color: #292524;
-		transition: background 0.15s;
+		color: var(--text);
+		transition: background var(--dur);
 	}
 	.btn:hover:not(:disabled) {
-		background: #f5f5f4;
+		background: var(--surface-2);
 	}
 	.btn:disabled {
 		cursor: default;
@@ -596,15 +596,15 @@
 		border-radius: 0.4rem;
 		padding: 0.2rem 0.5rem;
 		font-variant-numeric: tabular-nums;
-		color: #292524;
-		transition: background 0.1s;
+		color: var(--text);
+		transition: background var(--dur-fast);
 	}
 	.move:hover {
-		background: #f5f5f4;
+		background: var(--surface-2);
 	}
 	.move-active {
-		background: #1c1917;
-		color: #fff;
+		background: var(--text);
+		color: var(--bg);
 		font-weight: 600;
 	}
 </style>

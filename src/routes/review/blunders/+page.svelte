@@ -124,7 +124,7 @@
 <svelte:head><title>Review · Blunder trainer</title></svelte:head>
 <svelte:window onkeydown={onKey} />
 
-<div class="min-h-screen" style="background: #fafaf9;">
+<div class="min-h-screen" style="background: var(--bg);">
 	<main class="mx-auto max-w-4xl px-4 py-8">
 		<header class="mb-2 flex items-baseline justify-between gap-4">
 			<h1 class="text-3xl font-bold tracking-tight" style="color: {C.ink};">Blunder trainer</h1>
@@ -273,30 +273,30 @@
 <style>
 	.card {
 		border-radius: 1rem;
-		border: 1px solid #ede9e6;
-		background: #fff;
+		border: 1px solid var(--border);
+		background: var(--surface-1);
 		padding: 1.25rem;
-		box-shadow: 0 1px 2px rgb(28 25 23 / 0.04);
+		box-shadow: var(--shadow-1);
 	}
 	.eyebrow {
 		font-size: 0.7rem;
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
-		color: #a8a29e;
+		color: var(--text-muted);
 	}
 	.muted {
 		font-size: 0.875rem;
-		color: #a8a29e;
+		color: var(--text-muted);
 	}
 	kbd {
 		border-radius: 0.3rem;
-		border: 1px solid #d6d3d1;
-		background: #fff;
+		border: 1px solid var(--border-strong);
+		background: var(--surface-1);
 		padding: 0.05rem 0.35rem;
 		font-size: 0.75rem;
 		font-weight: 600;
-		color: #57534e;
+		color: var(--text-2);
 	}
 
 	.segmented {
@@ -304,7 +304,7 @@
 		gap: 0.25rem;
 		padding: 0.25rem;
 		border-radius: 9999px;
-		background: #f0eeec;
+		background: var(--surface-2);
 	}
 	.seg {
 		display: inline-flex;
@@ -314,10 +314,10 @@
 		padding: 0.4rem 0.95rem;
 		font-size: 0.85rem;
 		font-weight: 600;
-		color: #78716c;
+		color: var(--text-2);
 		transition:
-			background 0.15s,
-			color 0.15s;
+			background var(--dur),
+			color var(--dur);
 	}
 	.seg-count {
 		font-size: 0.7rem;
@@ -326,9 +326,9 @@
 		font-variant-numeric: tabular-nums;
 	}
 	.seg-on {
-		background: #fff;
-		color: #1c1917;
-		box-shadow: 0 1px 3px rgb(28 25 23 / 0.12);
+		background: var(--surface-3);
+		color: var(--text);
+		box-shadow: var(--shadow-1);
 	}
 
 	.tier {
@@ -338,22 +338,22 @@
 		font-weight: 700;
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
-		background: #fde7ec;
-		color: #be123c;
+		background: color-mix(in srgb, var(--bad) 16%, transparent);
+		color: var(--bad);
 	}
 
 	.btn {
 		border-radius: 0.6rem;
-		border: 1px solid #d6d3d1;
-		background: #fff;
+		border: 1px solid var(--border-strong);
+		background: var(--surface-1);
 		padding: 0.45rem 0.9rem;
 		font-size: 0.85rem;
 		font-weight: 600;
-		color: #292524;
-		transition: background 0.15s;
+		color: var(--text);
+		transition: background var(--dur);
 	}
 	.btn:hover:not(:disabled) {
-		background: #f5f5f4;
+		background: var(--surface-2);
 	}
 	.btn:disabled {
 		cursor: default;
@@ -361,10 +361,10 @@
 	}
 
 	.explain {
-		border-left: 3px solid #e7e5e4;
+		border-left: 3px solid var(--border-strong);
 		padding: 0.25rem 0 0.25rem 0.85rem;
 		font-size: 0.9rem;
 		line-height: 1.6;
-		color: #44403c;
+		color: var(--text-2);
 	}
 </style>

@@ -115,7 +115,7 @@
 
 <svelte:head><title>Review · Winnable losses</title></svelte:head>
 
-<div class="min-h-screen" style="background: #fafaf9;">
+<div class="min-h-screen" style="background: var(--bg);">
 	<main class="mx-auto max-w-4xl px-4 py-8">
 		<header class="mb-2 flex items-baseline justify-between gap-4">
 			<h1 class="text-3xl font-bold tracking-tight" style="color: {C.ink};">Winnable losses</h1>
@@ -207,7 +207,7 @@
 							<div style="color: {C.muted};">thrown away</div>
 						</div>
 						<div>
-							<div class="num-md" style="color: #ca8a04;">{outplayedCount}</div>
+							<div class="num-md" style="color: var(--warn);">{outplayedCount}</div>
 							<div style="color: {C.muted};">out-resourced</div>
 						</div>
 						<div>
@@ -306,27 +306,27 @@
 <style>
 	.card {
 		border-radius: 1rem;
-		border: 1px solid #ede9e6;
-		background: #fff;
+		border: 1px solid var(--border);
+		background: var(--surface-1);
 		padding: 1.25rem;
-		box-shadow: 0 1px 2px rgb(28 25 23 / 0.04);
+		box-shadow: var(--shadow-1);
 	}
 	.eyebrow {
 		font-size: 0.7rem;
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
-		color: #a8a29e;
+		color: var(--text-muted);
 	}
 	.opt {
 		font-weight: 500;
 		text-transform: none;
 		letter-spacing: 0;
-		color: #c7c2bd;
+		color: var(--text-muted);
 	}
 	.muted {
 		font-size: 0.875rem;
-		color: #a8a29e;
+		color: var(--text-muted);
 	}
 	.num-xl {
 		font-size: 2.75rem;
@@ -346,7 +346,7 @@
 		gap: 0.25rem;
 		padding: 0.25rem;
 		border-radius: 9999px;
-		background: #f0eeec;
+		background: var(--surface-2);
 	}
 	.seg {
 		display: inline-flex;
@@ -356,10 +356,10 @@
 		padding: 0.4rem 0.95rem;
 		font-size: 0.85rem;
 		font-weight: 600;
-		color: #78716c;
+		color: var(--text-2);
 		transition:
-			background 0.15s,
-			color 0.15s;
+			background var(--dur),
+			color var(--dur);
 	}
 	.seg-count {
 		font-size: 0.7rem;
@@ -368,9 +368,9 @@
 		font-variant-numeric: tabular-nums;
 	}
 	.seg-on {
-		background: #fff;
-		color: #1c1917;
-		box-shadow: 0 1px 3px rgb(28 25 23 / 0.12);
+		background: var(--surface-3);
+		color: var(--text);
+		box-shadow: var(--shadow-1);
 	}
 
 	/* Lever pills */
@@ -381,24 +381,24 @@
 	}
 	.pill {
 		border-radius: 0.55rem;
-		border: 1px solid #e7e5e4;
-		background: #fff;
+		border: 1px solid var(--border);
+		background: var(--surface-1);
 		padding: 0.35rem 0.7rem;
 		font-size: 0.8rem;
 		font-weight: 600;
-		color: #57534e;
+		color: var(--text-2);
 		transition:
-			background 0.12s,
-			border-color 0.12s,
-			color 0.12s;
+			background var(--dur-fast),
+			border-color var(--dur-fast),
+			color var(--dur-fast);
 	}
 	.pill:hover {
-		background: #fafaf9;
+		background: var(--surface-2);
 	}
 	.pill-on {
-		border-color: #059669;
-		background: #f0fdf9;
-		color: #047857;
+		border-color: var(--good);
+		background: color-mix(in srgb, var(--good) 12%, transparent);
+		color: var(--good);
 	}
 
 	.tier {
@@ -410,26 +410,26 @@
 		letter-spacing: 0.04em;
 	}
 	.tier.thrown {
-		background: #fde7ec;
-		color: #be123c;
+		background: color-mix(in srgb, var(--bad) 16%, transparent);
+		color: var(--bad);
 	}
 	.tier.outplayed {
-		background: #fef3c7;
-		color: #b45309;
+		background: color-mix(in srgb, var(--warn) 18%, transparent);
+		color: var(--warn);
 	}
 
 	.btn {
 		border-radius: 0.6rem;
-		border: 1px solid #d6d3d1;
-		background: #fff;
+		border: 1px solid var(--border-strong);
+		background: var(--surface-1);
 		padding: 0.45rem 0.9rem;
 		font-size: 0.85rem;
 		font-weight: 600;
-		color: #292524;
-		transition: background 0.15s;
+		color: var(--text);
+		transition: background var(--dur);
 	}
 	.btn:hover:not(:disabled) {
-		background: #f5f5f4;
+		background: var(--surface-2);
 	}
 	.btn:disabled {
 		cursor: default;
@@ -437,10 +437,10 @@
 	}
 
 	.explain {
-		border-left: 3px solid #e7e5e4;
+		border-left: 3px solid var(--border-strong);
 		padding: 0.25rem 0 0.25rem 0.85rem;
 		font-size: 0.9rem;
 		line-height: 1.6;
-		color: #44403c;
+		color: var(--text-2);
 	}
 </style>

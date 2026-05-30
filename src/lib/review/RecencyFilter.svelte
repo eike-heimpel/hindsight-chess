@@ -44,28 +44,28 @@
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
-		color: #a8a29e;
+		color: var(--text-muted);
 	}
 	.segmented {
 		display: inline-flex;
 		gap: 0.25rem;
 		padding: 0.25rem;
 		border-radius: 9999px;
-		background: #f0eeec;
+		background: var(--surface-2);
 	}
 	.seg {
 		border-radius: 9999px;
 		padding: 0.4rem 0.8rem;
 		font-size: 0.85rem;
 		font-weight: 600;
-		color: #78716c;
+		color: var(--text-2);
 		transition:
-			background 0.15s,
-			color 0.15s;
+			background var(--dur),
+			color var(--dur);
 	}
 	.seg-on {
-		background: #fff;
-		color: #1c1917;
-		box-shadow: 0 1px 3px rgb(28 25 23 / 0.12);
+		background: var(--surface-3);
+		color: var(--text);
+		box-shadow: var(--shadow-1);
 	}
 </style>

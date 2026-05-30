@@ -144,10 +144,10 @@
 
 <!--
   grid-rows-8 ensures every cell is genuinely square on an aspect-square parent.
-  Light/dark squares use the modern muted Lichess palette (#ebecd0 / #779556).
+  Square / highlight / arrow colours come from board tokens (docs/design/system.md).
 -->
 <div
-	class="relative mx-auto grid aspect-square w-full max-w-[min(80svh,95svw)] grid-cols-8 grid-rows-8 overflow-hidden rounded-2xl shadow-sm ring-1 ring-stone-200 select-none"
+	class="relative mx-auto grid aspect-square w-full max-w-[min(80svh,95svw)] grid-cols-8 grid-rows-8 overflow-hidden rounded-2xl shadow-sm ring-1 ring-[var(--border)] select-none"
 >
 	{#each renderedRanks as rank (rank)}
 		{#each renderedFiles as file (file)}
@@ -161,9 +161,9 @@
 				type="button"
 				aria-label={piece ? `${sq} – ${pieceLabel(piece)}` : sq}
 				class="relative flex items-center justify-center transition-colors duration-100 {light
-					? 'bg-[#ebecd0]'
-					: 'bg-[#779556]'} {isSel ? 'bg-amber-300/60' : ''} {isLast && !isSel
-					? 'bg-amber-200/55'
+					? 'bg-[var(--board-light)]'
+					: 'bg-[var(--board-dark)]'} {isSel ? 'bg-[var(--board-select)]' : ''} {isLast && !isSel
+					? 'bg-[var(--board-last)]'
 					: ''}"
 				onclick={() => onSquareClick(sq)}
 			>
@@ -182,23 +182,23 @@
 				{#if isDest}
 					<span
 						class="pointer-events-none absolute rounded-full {piece
-							? 'inset-[6%] border-[5px] border-stone-900/25 bg-transparent'
-							: 'h-[28%] w-[28%] bg-stone-900/22'}"
+							? 'inset-[6%] border-[5px] border-[var(--board-marker)] bg-transparent'
+							: 'h-[28%] w-[28%] bg-[var(--board-marker)]'}"
 					></span>
 				{/if}
 
 				{#if rankLabelOn(file)}
 					<span
 						class="pointer-events-none absolute top-1 left-1.5 text-[0.65rem] font-semibold {light
-							? 'text-[#779556]'
-							: 'text-[#ebecd0]'}">{rank}</span
+							? 'text-[var(--board-dark)]'
+							: 'text-[var(--board-light)]'}">{rank}</span
 					>
 				{/if}
 				{#if fileLabelOn(rank)}
 					<span
 						class="pointer-events-none absolute right-1.5 bottom-0.5 text-[0.65rem] font-semibold {light
-							? 'text-[#779556]'
-							: 'text-[#ebecd0]'}">{file}</span
+							? 'text-[var(--board-dark)]'
+							: 'text-[var(--board-light)]'}">{file}</span
 					>
 				{/if}
 			</button>
@@ -207,7 +207,7 @@
 
 	{#if arrowGeom}
 		<svg
-			class="opp-arrow pointer-events-none absolute inset-0 h-full w-full text-amber-600/85"
+			class="opp-arrow pointer-events-none absolute inset-0 h-full w-full text-[var(--arrow-best)]"
 			viewBox="0 0 8 8"
 			aria-hidden="true"
 		>

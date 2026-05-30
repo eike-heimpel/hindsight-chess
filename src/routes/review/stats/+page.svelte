@@ -104,7 +104,9 @@
 	{@const good = goodUp ? d >= 0 : d <= 0}
 	<span
 		class="rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums"
-		style="color: {good ? C.good : C.bad}; background: {(good ? C.good : C.bad) + '14'};"
+		style="color: {good ? C.good : C.bad}; background: color-mix(in srgb, {good
+			? C.good
+			: C.bad} 12%, transparent);"
 		title="recent games vs. earlier games"
 	>
 		{d > 0 ? '↑' : '↓'}{Math.abs(Math.round(d * 10) / 10)}{unit}
@@ -147,7 +149,7 @@
 	</div>
 {/snippet}
 
-<div class="min-h-screen" style="background: #fafaf9;">
+<div class="min-h-screen" style="background: var(--bg);">
 	<main class="mx-auto max-w-4xl px-4 py-8">
 		<header class="mb-6 flex items-baseline justify-between gap-4">
 			<h1 class="text-3xl font-bold tracking-tight" style="color: {C.ink};">Stats</h1>
@@ -461,30 +463,30 @@
 <style>
 	.card {
 		border-radius: 1rem;
-		border: 1px solid #ede9e6;
-		background: #fff;
+		border: 1px solid var(--border);
+		background: var(--surface-1);
 		padding: 1.25rem;
-		box-shadow: 0 1px 2px rgb(28 25 23 / 0.04);
+		box-shadow: var(--shadow-1);
 	}
 	.section-title {
 		font-size: 0.95rem;
 		font-weight: 600;
-		color: #292524;
+		color: var(--text);
 	}
 	.eyebrow {
 		font-size: 0.7rem;
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
-		color: #a8a29e;
+		color: var(--text-muted);
 	}
 	.caption {
 		font-size: 0.75rem;
-		color: #a8a29e;
+		color: var(--text-muted);
 	}
 	.muted {
 		font-size: 0.875rem;
-		color: #a8a29e;
+		color: var(--text-muted);
 	}
 	.num-lg {
 		font-size: 2rem;
@@ -499,7 +501,7 @@
 		gap: 0.25rem;
 		padding: 0.25rem;
 		border-radius: 9999px;
-		background: #f0eeec;
+		background: var(--surface-2);
 	}
 	.seg {
 		display: inline-flex;
@@ -509,10 +511,10 @@
 		padding: 0.4rem 0.95rem;
 		font-size: 0.85rem;
 		font-weight: 600;
-		color: #78716c;
+		color: var(--text-2);
 		transition:
-			background 0.15s,
-			color 0.15s;
+			background var(--dur),
+			color var(--dur);
 	}
 	.seg-count {
 		font-size: 0.7rem;
@@ -521,30 +523,30 @@
 		font-variant-numeric: tabular-nums;
 	}
 	.seg-on {
-		background: #fff;
-		color: #1c1917;
-		box-shadow: 0 1px 3px rgb(28 25 23 / 0.12);
+		background: var(--surface-3);
+		color: var(--text);
+		box-shadow: var(--shadow-1);
 	}
 
 	/* Underline tab bar for the section sub-nav */
 	.tabbar {
 		display: flex;
 		gap: 1.5rem;
-		border-bottom: 1px solid #ede9e6;
+		border-bottom: 1px solid var(--border);
 	}
 	.tab {
 		position: relative;
 		padding: 0.5rem 0;
 		font-size: 0.95rem;
 		font-weight: 500;
-		color: #a8a29e;
-		transition: color 0.15s;
+		color: var(--text-muted);
+		transition: color var(--dur);
 	}
 	.tab:hover {
-		color: #57534e;
+		color: var(--text-2);
 	}
 	.tab-on {
-		color: #1c1917;
+		color: var(--text);
 		font-weight: 600;
 	}
 	.tab-on::after {
@@ -555,21 +557,21 @@
 		bottom: -1px;
 		height: 2px;
 		border-radius: 2px;
-		background: #059669;
+		background: var(--brand);
 	}
 
 	.btn {
 		border-radius: 0.6rem;
-		border: 1px solid #d6d3d1;
-		background: #fff;
+		border: 1px solid var(--border-strong);
+		background: var(--surface-1);
 		padding: 0.45rem 0.9rem;
 		font-size: 0.85rem;
 		font-weight: 600;
-		color: #292524;
-		transition: background 0.15s;
+		color: var(--text);
+		transition: background var(--dur);
 	}
 	.btn:hover:not(:disabled) {
-		background: #f5f5f4;
+		background: var(--surface-2);
 	}
 	.btn:disabled {
 		cursor: default;
@@ -578,8 +580,8 @@
 
 	.colorcard {
 		border-radius: 0.75rem;
-		border: 1px solid #f0eeec;
-		background: #fafaf9;
+		border: 1px solid var(--border);
+		background: var(--surface-2);
 		padding: 0.9rem;
 	}
 	.chip {
@@ -587,14 +589,14 @@
 		height: 0.85rem;
 		width: 0.85rem;
 		border-radius: 9999px;
-		border: 1px solid #d6d3d1;
+		border: 1px solid var(--border-strong);
 	}
 	.chip-w {
-		background: #fff;
+		background: var(--piece-white);
 	}
 	.chip-b {
-		background: #44403c;
-		border-color: #44403c;
+		background: var(--piece-black);
+		border-color: var(--piece-black);
 	}
 
 	.winnable-teaser {
@@ -603,16 +605,16 @@
 		justify-content: space-between;
 		gap: 1rem;
 		border-radius: 1rem;
-		border: 1px solid #ede9e6;
-		background: #fff;
+		border: 1px solid var(--border);
+		background: var(--surface-1);
 		padding: 1.1rem 1.25rem;
-		box-shadow: 0 1px 2px rgb(28 25 23 / 0.04);
+		box-shadow: var(--shadow-1);
 		transition:
-			background 0.12s,
-			box-shadow 0.12s;
+			background var(--dur-fast),
+			box-shadow var(--dur-fast);
 	}
 	.winnable-teaser:hover {
-		background: #fafaf9;
-		box-shadow: 0 2px 6px rgb(28 25 23 / 0.07);
+		background: var(--surface-2);
+		box-shadow: var(--shadow-2);
 	}
 </style>

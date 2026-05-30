@@ -47,7 +47,7 @@
 <ul class="space-y-2.5">
 	{#each bars as b (b.label)}
 		<li class="grid grid-cols-[7rem_1fr_auto] items-center gap-3 text-sm">
-			<span class="truncate text-stone-500" title={b.label}>{b.label}</span>
+			<span class="truncate" title={b.label} style="color: {C.body};">{b.label}</span>
 			<span class="relative h-2.5 overflow-hidden rounded-full" style="background: {C.track};">
 				<span
 					class="absolute inset-y-0 left-0 rounded-full transition-[width] duration-500 ease-out"

@@ -76,7 +76,11 @@
 	);
 
 	const last = $derived(trendPts.at(-1)!);
-	const gradId = $derived(`lc-${color.replace('#', '')}-${series.length}-${Math.round(hi)}`);
+	// `color` is a `var(--…)` string, so strip everything but alphanumerics for a
+	// valid SVG gradient id / url(#…) reference.
+	const gradId = $derived(
+		`lc-${color.replace(/[^a-z0-9]/gi, '')}-${series.length}-${Math.round(hi)}`
+	);
 
 	let active = $state<number | null>(null);
 
@@ -142,7 +146,7 @@
 				cx={pts[active].x}
 				cy={pts[active].y}
 				r="5"
-				fill="#fff"
+				fill="var(--surface-1)"
 				stroke={color}
 				stroke-width="2.5"
 			/>
@@ -163,7 +167,7 @@
 				cx={pts[mark].x}
 				cy={pts[mark].y}
 				r="5"
-				fill="#fff"
+				fill="var(--surface-1)"
 				stroke={markColor}
 				stroke-width="2.5"
 			/>
@@ -191,8 +195,8 @@
 	{#if active !== null}
 		{@const p = series[active]}
 		<div
-			class="pointer-events-none absolute -translate-x-1/2 rounded-lg px-2 py-1 text-center text-xs whitespace-nowrap text-white shadow-lg"
-			style="left: {(pts[active].x / W) * 100}%; top: -2px; background: {C.ink};"
+			class="pointer-events-none absolute -translate-x-1/2 rounded-lg px-2 py-1 text-center text-xs whitespace-nowrap shadow-lg"
+			style="left: {(pts[active].x / W) * 100}%; top: -2px; background: {C.ink}; color: var(--bg);"
 		>
 			<span class="font-semibold">{fmt(p.value)}</span>
 			<span class="ml-1 opacity-70">{p.label}</span>
@@ -202,12 +206,12 @@
 
 <style>
 	.cursor {
-		stroke: #d6d3d1;
+		stroke: var(--border-strong);
 		stroke-width: 1.5;
 		stroke-dasharray: 2 3;
 	}
 	.threshold {
-		stroke: #d6d3d1;
+		stroke: var(--border-strong);
 		stroke-width: 1;
 		stroke-dasharray: 4 4;
 	}
@@ -220,7 +224,7 @@
 		line-height: 1;
 		pointer-events: none;
 		text-shadow:
-			0 0 3px #fff,
-			0 0 3px #fff;
+			0 0 3px var(--surface-1),
+			0 0 3px var(--surface-1);
 	}
 </style>
