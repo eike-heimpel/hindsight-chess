@@ -49,6 +49,26 @@ this is exposed to strangers:
    user budget.
 4. **chess.com ToS / rate limits** at multi-user scale.
 
+## Immediate cleanup (carried-over kid-app cruft)
+
+Small, do-before-public items — distinct from the design decisions above:
+
+- **Scrub the hardcoded real account.** `profiles.ts` hardcodes the chess.com
+  username `timbolt123` (the `papa` seed + a leftover one-time migration `$set`).
+  It's a real person's account and it's already in git history — remove it and
+  the migration block; the account should be linked at runtime, not seeded.
+- **Drop the `child` seed.** `ensureSeed()` seeds `lia` (child) + `papa`
+  (parent); a review-only app has no child. Collapse to whatever the redesigned
+  auth (above) needs.
+- **Env / DB.** Only `.env.example` came over — set `MONGO_*` + the OpenRouter
+  key. A fresh DB self-seeds (`ensureSeed` runs lazily), so the app boots clean.
+  Pointing at the kid app's existing DB also works (reuses already-analyzed
+  games) but shares collections — fine for dev, give it its own DB for public.
+- **Deploy adapter.** `adapter-auto` can't detect a target on plain build; set
+  the real adapter (e.g. `@sveltejs/adapter-vercel`) when wiring deploy.
+- `docs/review.md` still reads as a _feature doc_ of the parent app ("separate
+  room", "Papa profile"). Reframe to a standalone-app doc when convenient.
+
 ## Stack
 
 SvelteKit + Svelte 5 (runes), Tailwind v4, chess.js, Stockfish (WASM browser /
