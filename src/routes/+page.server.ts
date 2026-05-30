@@ -1,4 +1,5 @@
 import { error, redirect } from '@sveltejs/kit';
+import { dev } from '$app/environment';
 import type { PageServerLoad } from './$types';
 import { useMongo } from '$lib/server/env';
 import { getUser } from '$lib/server/auth';
@@ -65,8 +66,113 @@ function recapFor(p: PerspectiveGame, cachedHeadlines: Map<string, string>) {
 	};
 }
 
+/**
+ * Dev-only fixture for /?mock=1 — lets us eyeball the home (recap card, sparkline
+ * draw, in-graph peak label, headline swap, flipping) without real games or auth.
+ * Two games arrive unanalyzed so the client's scripted simulation can play the
+ * "comes alive" reveal; two arrive analyzed so the static chart shows at once.
+ */
+function mockData() {
+	const h = 60 * 60 * 1000;
+	const now = Date.now();
+	const recents = [
+		{
+			source: 'chesscom' as ReviewSource,
+			gameId: 'mock-1',
+			side: 'w' as const,
+			url: null,
+			opponent: 'lichess AI level 5',
+			outcome: 'loss' as const,
+			timeClass: 'rapid',
+			opening: 'London System',
+			playedAt: new Date(now - 2 * h),
+			analyzed: false,
+			accuracy: null as number | null,
+			peakWin: null as number | null,
+			spark: null as number[] | null,
+			headline:
+				'You had a close game, but after a tough middle stretch, things slipped away near the end.'
+		},
+		{
+			source: 'chesscom' as ReviewSource,
+			gameId: 'mock-2',
+			side: 'w' as const,
+			url: null,
+			opponent: 'Magnus_fan',
+			outcome: 'win' as const,
+			timeClass: 'blitz',
+			opening: 'Sicilian Defense',
+			playedAt: new Date(now - 26 * h),
+			analyzed: true,
+			accuracy: 88 as number | null,
+			peakWin: 90 as number | null,
+			spark: [
+				50, 52, 49, 53, 55, 54, 58, 60, 57, 62, 65, 63, 68, 70, 72, 69, 74, 78, 80, 79, 84, 88, 90,
+				89
+			] as number[] | null,
+			headline: 'A clean, confident win — you built an edge and never let it go.'
+		},
+		{
+			source: 'chesscom' as ReviewSource,
+			gameId: 'mock-3',
+			side: 'b' as const,
+			url: null,
+			opponent: 'rookie2024',
+			outcome: 'draw' as const,
+			timeClass: 'bullet',
+			opening: 'Italian Game',
+			playedAt: new Date(now - 50 * h),
+			analyzed: false,
+			accuracy: null as number | null,
+			peakWin: null as number | null,
+			spark: null as number[] | null,
+			headline: 'A back-and-forth fight that neither side could break — a fair draw.'
+		},
+		{
+			source: 'chesscom' as ReviewSource,
+			gameId: 'mock-4',
+			side: 'w' as const,
+			url: null,
+			opponent: 'deepblue',
+			outcome: 'loss' as const,
+			timeClass: 'rapid',
+			opening: 'Caro-Kann Defense',
+			playedAt: new Date(now - 74 * h),
+			analyzed: true,
+			accuracy: 64 as number | null,
+			peakWin: 53 as number | null,
+			spark: [
+				50, 48, 51, 47, 45, 46, 42, 40, 43, 38, 35, 37, 33, 30, 32, 28, 25, 27, 24, 22, 20, 23, 19
+			] as number[] | null,
+			headline: 'One sharp tactic turned the game — worth a look at where it went wrong.'
+		}
+	];
+	return {
+		needsAccount: false,
+		name: 'mockuser',
+		account: 'mockuser',
+		accounts: ['mockuser'],
+		llmHeadlines: true,
+		mock: true,
+		totalGames: 24,
+		recents,
+		summary: {
+			gamesThisWeek: 6,
+			recentForm: { win: 7, draw: 2, loss: 3 } as Tally,
+			sharpest: {
+				accuracy: 88,
+				opponent: 'Magnus_fan',
+				source: 'chesscom',
+				gameId: 'mock-2'
+			}
+		},
+		depth: { blunders: 12, winnable: 3, analyzed: 6, total: 24 }
+	};
+}
+
 const EMPTY = {
 	needsAccount: true,
+	mock: false,
 	name: null as string | null,
 	account: null as string | null,
 	accounts: [] as string[],
@@ -81,10 +187,12 @@ const EMPTY = {
 	depth: { blunders: 0, winnable: 0, analyzed: 0, total: 0 }
 };
 
-export const load: PageServerLoad = async ({ locals, depends }) => {
+export const load: PageServerLoad = async ({ locals, depends, url }) => {
 	// The client re-runs this (without a full reload) after an auto-sync pulls
 	// new games — see +page.svelte's `invalidate('app:recents')`.
 	depends('app:recents');
+
+	if (dev && url.searchParams.has('mock')) return mockData();
 
 	if (!useMongo()) throw error(503, 'mongo not configured');
 	const user = await getUser(locals);
@@ -141,6 +249,7 @@ export const load: PageServerLoad = async ({ locals, depends }) => {
 
 	return {
 		needsAccount: false,
+		mock: false,
 		name: primary,
 		account: primary,
 		accounts: [active.username],

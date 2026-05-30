@@ -78,6 +78,19 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	};
 };
 
+/** Map a platform fetch error to a form `fail` the page can render. */
+function pullFailure(account: ReviewAccount, kind: string) {
+	const notFound = kind === 'not_found';
+	const platform = account.source === 'lichess' ? 'lichess' : 'chess.com';
+	return fail(notFound ? 404 : 502, {
+		username: account.username,
+		source: account.source,
+		message: notFound
+			? `No ${platform} player "${account.username}".`
+			: `Could not reach ${platform}. Try again.`
+	});
+}
+
 /** Pull from the profile's platform and store. Incremental sync passes
  *  `knownGameIds` to stop at the first already-stored game; a full back-fill
  *  omits it (and uses a high limit) to walk the entire history — upserts are
@@ -88,17 +101,7 @@ async function pullAndStore(
 	opts: { limit: number; knownGameIds?: Set<string> }
 ) {
 	const result = await sourceFor(account.source).listGames(account.username, opts);
-	if (!result.ok) {
-		const notFound = result.error.kind === 'not_found';
-		const platform = account.source === 'lichess' ? 'lichess' : 'chess.com';
-		return fail(notFound ? 404 : 502, {
-			username: account.username,
-			source: account.source,
-			message: notFound
-				? `No ${platform} player "${account.username}".`
-				: `Could not reach ${platform}. Try again.`
-		});
-	}
+	if (!result.ok) return pullFailure(account, result.error.kind);
 	await upsertGames(result.value.map(normalize));
 	throw redirect(303, `/review?synced=${result.value.length}`);
 }
@@ -130,9 +133,21 @@ export const actions: Actions = {
 			return fail(400, { username: '', message: 'Pick a platform and enter a username.' });
 		}
 
-		await setUserReviewAccounts(user.userId, [...user.reviewAccounts, account]);
+		// Validate + import in one step: a typo'd username surfaces here as an
+		// error instead of becoming a phantom profile with zero games, and a real
+		// one lands with its games already pulled — no manual sync needed.
+		const result = await sourceFor(account.source).listGames(account.username, {
+			limit: SYNC_LIMIT
+		});
+		if (!result.ok) return pullFailure(account, result.error.kind);
+
+		const exists = user.reviewAccounts.some((a) => accountKey(a) === accountKey(account));
+		if (!exists) {
+			await setUserReviewAccounts(user.userId, [...user.reviewAccounts, account]);
+		}
 		await setUserActiveAccount(user.userId, account);
-		throw redirect(303, '/review');
+		await upsertGames(result.value.map(normalize));
+		throw redirect(303, `/review?synced=${result.value.length}`);
 	},
 
 	removeAccount: async ({ locals, request }) => {

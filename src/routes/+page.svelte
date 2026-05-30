@@ -188,14 +188,17 @@
 
 	async function run() {
 		// 1. Auto-sync new games, then re-run the loader if any landed.
-		try {
-			const res = await fetch('/api/review/sync', { method: 'POST' });
-			if (res.ok) {
-				const { added } = (await res.json()) as { added: number };
-				if (added > 0) await invalidate('app:recents');
+		//    (Skipped in mock mode — there's no real account to sync.)
+		if (!data.mock) {
+			try {
+				const res = await fetch('/api/review/sync', { method: 'POST' });
+				if (res.ok) {
+					const { added } = (await res.json()) as { added: number };
+					if (added > 0) await invalidate('app:recents');
+				}
+			} catch {
+				// Offline / 5xx — proceed with what's already stored.
 			}
-		} catch {
-			// Offline / 5xx — proceed with what's already stored.
 		}
 		if (cancelRequested) return;
 		// 2. Queue the newest unanalyzed games (cap), then drain.
@@ -226,10 +229,74 @@
 		}
 	}
 
+	// --- Mock mode (/?mock=1) -----------------------------------------------
+	// The reveal each unanalyzed mock game animates into: a win-% timeline plus
+	// the "story" headline that swaps in after the (fake) engine + LLM run.
+	const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+	const MOCK_REVEAL: Record<
+		string,
+		{ spark: number[]; accuracy: number; peakWin: number; headline: string }
+	> = {
+		'chesscom:mock-1': {
+			spark: [
+				50, 53, 51, 55, 58, 56, 60, 57, 54, 50, 46, 48, 43, 40, 42, 38, 35, 33, 36, 30, 27, 24, 22,
+				20
+			],
+			accuracy: 71,
+			peakWin: 60,
+			headline:
+				'Even after the engine ran, the verdict holds — a strong middlegame undone by a couple of late slips.'
+		},
+		'chesscom:mock-3': {
+			spark: [
+				50, 48, 52, 49, 53, 51, 47, 50, 54, 52, 48, 51, 49, 53, 50, 47, 52, 50, 49, 51, 50
+			],
+			accuracy: 80,
+			peakWin: 54,
+			headline: 'The engine agrees it was balanced throughout — a hard-earned, well-deserved draw.'
+		}
+	};
+
+	async function simulateOne(k: string) {
+		const reveal = MOCK_REVEAL[k];
+		if (!reveal) return;
+		patch(k, { phase: 'fetching', done: 0, total: 0 });
+		await sleep(600);
+		if (cancelRequested) return;
+		const total = reveal.spark.length;
+		patch(k, { phase: 'analyzing', total });
+		for (let done = 1; done <= total; done++) {
+			await sleep(55);
+			if (cancelRequested) return;
+			patch(k, { done });
+		}
+		patch(k, {
+			phase: 'analyzed',
+			animateGraph: true,
+			spark: reveal.spark,
+			accuracy: reveal.accuracy,
+			peakWin: reveal.peakWin
+		});
+		await sleep(2800); // let the line finish drawing before the headline swaps
+		if (cancelRequested) return;
+		if (data.llmHeadlines) {
+			patch(k, { phase: 'headlineLoading' });
+			await sleep(1300);
+			if (cancelRequested) return;
+			patch(k, { headline: reveal.headline });
+		}
+		patch(k, { phase: 'done' });
+	}
+
 	async function processOne(k: string) {
 		if (!isUntouched(k)) return; // dedupe — already running / done / errored
 		const recap = recapByKey.get(k);
 		if (!recap) return;
+
+		if (data.mock) {
+			await simulateOne(k);
+			return;
+		}
 
 		patch(k, { phase: 'fetching', done: 0, total: 0 });
 		try {
