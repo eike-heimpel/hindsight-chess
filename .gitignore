@@ -1,0 +1,58 @@
+node_modules
+
+# Output
+.output
+.vercel
+.netlify
+.wrangler
+/.svelte-kit
+/build
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example
+!.env.test
+
+# Secrets / credentials (defense in depth)
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+.secrets/
+
+# Local data dumps
+positions-backup-*.json
+
+# Stockfish engine binaries — synced from node_modules by sync:engine on
+# install (postinstall). Not source; regenerated locally and on deploy.
+/static/stockfish/
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Playwright
+test-results
+playwright-report
+blob-report
+.playwright
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.idea
+*.swp
+.tmp/
+
+# Claude Code local state — keep .claude/ commitable for shared config
+# (settings.json, agents/) but ignore per-machine state files.
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
