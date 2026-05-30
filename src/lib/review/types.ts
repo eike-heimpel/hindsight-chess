@@ -5,8 +5,22 @@
  */
 import type { Side } from '$lib/chess/types';
 
-/** Where a game came from. chess.com is the first adapter; upload + lichess follow. */
+/** Where a game came from. chess.com and lichess have adapters; upload follows. */
 export type ReviewSource = 'chesscom' | 'lichess' | 'upload';
+
+/** A linked profile: a username on one platform. The unit a user owns, swaps
+ *  between, and scopes the whole app to. Source-qualified because the same
+ *  username on chess.com and lichess are different people, and ratings don't
+ *  translate across platforms — see `docs/review.md`. */
+export type ReviewAccount = {
+	source: ReviewSource;
+	/** Lowercased; platform usernames are case-insensitive for our purposes. */
+	username: string;
+};
+
+/** Stable string key for a profile — used in URLs, form fields, dedup, and the
+ *  persisted "active profile" pointer. */
+export const accountKey = (a: ReviewAccount): string => `${a.source}:${a.username}`;
 
 export type GameResult = '1-0' | '0-1' | '1/2-1/2';
 

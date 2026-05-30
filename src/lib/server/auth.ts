@@ -1,27 +1,32 @@
 import { error } from '@sveltejs/kit';
 import { useBetterAuth } from './env.ts';
-import { getReviewAccounts, setReviewAccounts } from './reviewAccounts.ts';
+import { getReviewAccountsState, setActiveAccount, setReviewAccounts } from './reviewAccounts.ts';
+import type { ReviewAccount } from '$lib/review/types';
 
 /**
  * Identity seam — the single place a request's user is resolved. Better Auth
  * resolves the session in `hooks.server.ts` and populates `event.locals`; this
- * seam maps that to the app's `User` (Better Auth's `userId` + the chess.com
- * accounts the user owns). Downstream code keys on `User.userId` and never
- * touches the auth storage shape. See CLAUDE.md "Going public".
+ * seam maps that to the app's `User` (Better Auth's `userId` + the platform
+ * profiles the user owns + the one they're actively viewing). Downstream code
+ * keys on `User.userId` and never touches the auth storage shape. See CLAUDE.md
+ * "Going public".
  */
 
 export type User = {
 	userId: string;
-	/** chess.com usernames (lowercased) this user owns, for the review tool. */
-	reviewAccounts: string[];
+	/** Platform profiles (`{source, username}`) this user owns. */
+	reviewAccounts: ReviewAccount[];
+	/** The profile the whole app is currently scoped to (null until one is
+	 *  linked). Profiles stay separate — see `reviewAccounts.ts`. */
+	activeAccount: ReviewAccount | null;
 };
 
 /** Resolve the current user, or `null` when no session is present. Use in
  *  layout/page loaders that degrade gracefully. */
 export async function getUser(locals: App.Locals): Promise<User | null> {
 	if (!locals.user) return null;
-	const reviewAccounts = await getReviewAccounts(locals.user.id);
-	return { userId: locals.user.id, reviewAccounts };
+	const { accounts, active } = await getReviewAccountsState(locals.user.id);
+	return { userId: locals.user.id, reviewAccounts: accounts, activeAccount: active };
 }
 
 /** Route guard for authenticated endpoints: 503 if auth is unconfigured, 401
@@ -33,8 +38,16 @@ export async function requireUser(locals: App.Locals): Promise<User> {
 	return user;
 }
 
-/** Replace the chess.com accounts a user owns. Storage detail lives in
+/** Replace the platform profiles a user owns. Storage detail lives in
  *  `reviewAccounts.ts`; the seam keeps call sites user-centric. */
-export async function setUserReviewAccounts(userId: string, accounts: string[]): Promise<void> {
+export async function setUserReviewAccounts(
+	userId: string,
+	accounts: ReviewAccount[]
+): Promise<void> {
 	await setReviewAccounts(userId, accounts);
+}
+
+/** Point the user at a profile; the whole app scopes to it on the next load. */
+export async function setUserActiveAccount(userId: string, active: ReviewAccount): Promise<void> {
+	await setActiveAccount(userId, active);
 }

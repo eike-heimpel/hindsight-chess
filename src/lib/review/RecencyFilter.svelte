@@ -35,11 +35,13 @@
 
 <style>
 	.recency {
-		display: inline-flex;
+		display: flex;
+		max-width: 100%;
 		align-items: center;
 		gap: 0.6rem;
 	}
 	.eyebrow {
+		flex-shrink: 0;
 		font-size: 0.7rem;
 		font-weight: 600;
 		text-transform: uppercase;
@@ -48,16 +50,24 @@
 	}
 	.segmented {
 		display: inline-flex;
+		max-width: 100%;
 		gap: 0.25rem;
 		padding: 0.25rem;
 		border-radius: 9999px;
 		background: var(--surface-2);
+		overflow-x: auto;
+		scrollbar-width: none;
+	}
+	.segmented::-webkit-scrollbar {
+		display: none;
 	}
 	.seg {
+		flex-shrink: 0;
 		border-radius: 9999px;
 		padding: 0.4rem 0.8rem;
 		font-size: 0.85rem;
 		font-weight: 600;
+		white-space: nowrap;
 		color: var(--text-2);
 		transition:
 			background var(--dur),

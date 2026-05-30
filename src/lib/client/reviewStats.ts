@@ -21,7 +21,7 @@ export type BatchProgress = {
 
 export type BatchResult = { analyzed: number; failed: { ref: GameRef; message: string }[] };
 
-async function fetchGame(ref: GameRef): Promise<ReviewGame> {
+export async function fetchGame(ref: GameRef): Promise<ReviewGame> {
 	const res = await fetch(`/api/review/game/${ref.source}/${ref.gameId}`);
 	if (!res.ok) throw new Error(`could not load game ${ref.gameId} (${res.status})`);
 	return (await res.json()) as ReviewGame;

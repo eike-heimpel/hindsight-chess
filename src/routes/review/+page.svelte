@@ -10,13 +10,19 @@
 	const dateFmt = new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' });
 
 	type Game = PageData['games'][number];
+	type Account = PageData['reviewAccounts'][number];
+
+	const accountKey = (a: Account) => `${a.source}:${a.username}`;
+	const platformLabel = (s: Account['source']) => (s === 'lichess' ? 'Lichess' : 'Chess.com');
+
+	const me = $derived(data.account?.username ?? '');
 
 	function opponentOf(g: Game) {
-		return g.white.username.toLowerCase() === data.account ? g.black : g.white;
+		return g.white.username.toLowerCase() === me ? g.black : g.white;
 	}
 
 	function youAreWhite(g: Game) {
-		return g.white.username.toLowerCase() === data.account;
+		return g.white.username.toLowerCase() === me;
 	}
 
 	function outcome(g: Game): { label: string; style: string } {
@@ -53,16 +59,27 @@
 	<section class="mb-6">
 		{#if data.reviewAccounts.length > 0}
 			<div class="mb-3 flex flex-wrap items-center gap-2">
-				{#each data.reviewAccounts as acct (acct)}
-					{@const active = acct === data.account}
+				{#each data.reviewAccounts as acct (accountKey(acct))}
+					{@const active = data.account && accountKey(acct) === accountKey(data.account)}
 					<span
-						class="flex items-center gap-1 rounded-full border py-1 pr-1 pl-3 text-sm {active
+						class="flex items-center gap-1 rounded-full border py-1 pr-1 pl-1 text-sm {active
 							? 'border-border-strong bg-surface-3 text-text'
 							: 'border-border bg-surface-1 text-text-2'}"
 					>
-						<a href="/review?user={encodeURIComponent(acct)}" class="font-medium">{acct}</a>
+						<form method="POST" action="?/selectAccount" class="contents">
+							<input type="hidden" name="source" value={acct.source} />
+							<input type="hidden" name="username" value={acct.username} />
+							<button type="submit" class="flex items-center gap-1.5 rounded-full px-2 font-medium">
+								<span
+									class="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-text-2 uppercase"
+									>{platformLabel(acct.source)}</span
+								>
+								{acct.username}
+							</button>
+						</form>
 						<form method="POST" action="?/sync" class="contents">
-							<input type="hidden" name="username" value={acct} />
+							<input type="hidden" name="source" value={acct.source} />
+							<input type="hidden" name="username" value={acct.username} />
 							<button
 								type="submit"
 								title="Pull new games since the last sync"
@@ -71,7 +88,8 @@
 							>
 						</form>
 						<form method="POST" action="?/syncAll" class="contents">
-							<input type="hidden" name="username" value={acct} />
+							<input type="hidden" name="source" value={acct.source} />
+							<input type="hidden" name="username" value={acct.username} />
 							<button
 								type="submit"
 								title="Re-pull the full game history (back-fills older games)"
@@ -80,10 +98,11 @@
 							>
 						</form>
 						<form method="POST" action="?/removeAccount" class="contents">
-							<input type="hidden" name="username" value={acct} />
+							<input type="hidden" name="source" value={acct.source} />
+							<input type="hidden" name="username" value={acct.username} />
 							<button
 								type="submit"
-								title="Unlink account"
+								title="Unlink profile"
 								class="rounded-full px-1.5 py-0.5 text-xs text-text-muted hover:bg-surface-2"
 								>✕</button
 							>
@@ -94,9 +113,16 @@
 		{/if}
 
 		<form method="POST" action="?/addAccount" class="flex flex-wrap items-center gap-2">
+			<select
+				name="source"
+				class="rounded-lg border border-border bg-surface-1 px-3 py-2 text-text focus:border-border-strong focus:outline-none"
+			>
+				<option value="chesscom">Chess.com</option>
+				<option value="lichess">Lichess</option>
+			</select>
 			<input
 				name="username"
-				placeholder="link a chess.com username"
+				placeholder="username"
 				value={form?.username ?? ''}
 				autocomplete="off"
 				class="flex-1 rounded-lg border border-border bg-surface-1 px-3 py-2 text-text focus:border-border-strong focus:outline-none"
@@ -105,7 +131,7 @@
 				type="submit"
 				class="rounded-lg bg-brand px-4 py-2 font-medium text-white hover:bg-brand-hover"
 			>
-				Link account
+				Link profile
 			</button>
 		</form>
 	</section>
@@ -130,11 +156,14 @@
 
 	{#if data.account && data.games.length === 0}
 		<p class="text-text-muted">
-			No games stored for “{data.account}”. Hit ↻ Sync on the account chip to pull them.
+			No games stored for “{data.account.username}” on {platformLabel(data.account.source)}. Hit ↻
+			Sync on the profile chip to pull them.
 		</p>
-	{:else if data.games.length > 0}
+	{:else if data.account && data.games.length > 0}
 		<p class="mb-3 text-sm text-text-muted">
-			{data.games.length} recent games for “{data.account}”
+			{data.games.length} recent games for “{data.account.username}” on {platformLabel(
+				data.account.source
+			)}
 		</p>
 		<ul class="space-y-2">
 			{#each data.games as g (g.source + g.gameId)}
@@ -142,7 +171,7 @@
 				{@const oc = outcome(g)}
 				<li>
 					<a
-						href="/review/{g.source}/{g.gameId}?me={data.account}"
+						href="/review/{g.source}/{g.gameId}?me={encodeURIComponent(me)}"
 						class="flex items-center gap-3 rounded-xl border border-border bg-surface-1 px-4 py-3 transition-colors hover:border-border-strong hover:bg-surface-2"
 					>
 						<span
@@ -171,6 +200,8 @@
 			{/each}
 		</ul>
 	{:else}
-		<p class="text-text-muted">Link a chess.com account above to import and review games.</p>
+		<p class="text-text-muted">
+			Link a chess.com or lichess profile above to import and review games.
+		</p>
 	{/if}
 </main>

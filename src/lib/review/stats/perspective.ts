@@ -48,6 +48,25 @@ function myWinTimeline(analysis: GameAnalysis, side: Side): number[] {
 	return side === 'w' ? timeline : timeline.map((w) => 100 - w);
 }
 
+/**
+ * My-POV recap overlay from a freshly-computed analysis — the fields the home
+ * card animates in after a just-finished browser analysis. Pure, browser-safe
+ * (only chess/analysis types), so the client can call it without re-running
+ * `toPerspective` (which also needs the full game). Mirrors the `peakWin` /
+ * `accuracy` / `winTimeline` picks `toPerspective` makes.
+ */
+export function recapOverlayFrom(
+	analysis: GameAnalysis,
+	side: Side
+): { spark: number[]; accuracy: number; peakWin: number } {
+	const spark = myWinTimeline(analysis, side);
+	return {
+		spark,
+		accuracy: side === 'w' ? analysis.accuracy.white : analysis.accuracy.black,
+		peakWin: Math.max(...spark)
+	};
+}
+
 /** My half-moves, enriched. `msSpent` needs the previous same-side clock, so we
  *  walk my moves in order and diff consecutive clocks. */
 function myMoves(game: ReviewGame, side: Side, analysis: GameAnalysis | null): PerspectiveMove[] {

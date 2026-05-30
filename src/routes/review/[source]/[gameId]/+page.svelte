@@ -559,6 +559,18 @@
 		color: var(--text);
 	}
 
+	/* Roomier tap targets on touch devices; desktop keeps the compact pill. */
+	@media (pointer: coarse) {
+		.ctrl {
+			height: 2.5rem;
+			width: 2.5rem;
+		}
+		.ctrl-solo {
+			height: 2.75rem;
+			width: 2.75rem;
+		}
+	}
+
 	.verdict {
 		display: flex;
 		align-items: center;

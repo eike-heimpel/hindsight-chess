@@ -18,6 +18,12 @@ export function getOpenRouterModel(): string {
 	return env.OPENROUTER_MODEL || '~google/gemini-flash-latest';
 }
 
+/** Model for the home card's "story" headline — a small, cheap, fast model is
+ *  enough for one grounded sentence. Plain id (no `~` auto-router prefix). */
+export function getOpenRouterHeadlineModel(): string {
+	return env.OPENROUTER_HEADLINE_MODEL || 'google/gemini-2.5-flash-lite';
+}
+
 /**
  * Returns true iff we should use the real OpenRouter coach. False → tests / dev
  * without keys / explicit `USE_STUB_COACH=1`.
@@ -25,6 +31,12 @@ export function getOpenRouterModel(): string {
 export function useRealCoach(): boolean {
 	if (env.USE_STUB_COACH === '1') return false;
 	return !!env.OPENROUTER_API_KEY;
+}
+
+/** Optional lichess API token. lichess game-export works anonymously; a token
+ *  only raises rate limits. Empty string when unset (anonymous). */
+export function getLichessToken(): string {
+	return env.LICHESS_TOKEN || '';
 }
 
 export function getMongoUri(): string {

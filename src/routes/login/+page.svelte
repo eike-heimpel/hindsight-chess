@@ -30,9 +30,7 @@
 
 <main class="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-8">
 	<h1 class="mb-1 text-2xl font-bold text-text">Sign in to Hindsight</h1>
-	<p class="mb-6 text-sm text-text-muted">
-		We’ll email you a magic link — no password needed.
-	</p>
+	<p class="mb-6 text-sm text-text-muted">We’ll email you a magic link — no password needed.</p>
 
 	{#if !data.authConfigured}
 		<p
@@ -48,7 +46,8 @@
 			style="background: color-mix(in srgb, var(--good) 12%, transparent);"
 		>
 			Check your email for a sign-in link.
-			{#if dev}<br />Dev: the link is printed in the server console (<code>[magic-link]</code>).{/if}
+			{#if dev}<br />Dev: the link is printed in the server console (<code>[magic-link]</code
+				>).{/if}
 		</p>
 	{:else}
 		<form onsubmit={submit} class="flex flex-col gap-3">

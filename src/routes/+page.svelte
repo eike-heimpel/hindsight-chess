@@ -3,6 +3,13 @@
 	 * Game links are runtime-built hrefs carrying a ?me query string; same shape
 	 * as /review's game links. */
 	import { onMount } from 'svelte';
+	import { invalidate } from '$app/navigation';
+	import { fade } from 'svelte/transition';
+	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
+	import { analyzeGame } from '$lib/client/reviewAnalysis';
+	import { fetchGame } from '$lib/client/reviewStats';
+	import { recapOverlayFrom, sideFor } from '$lib/review/stats/perspective';
+	import type { ReviewSource } from '$lib/review/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -34,11 +41,111 @@
 	const outcomeLabel: Record<Outcome, string> = { win: 'Won', loss: 'Lost', draw: 'Drew' };
 	const outcomeToken: Record<Outcome, string> = { win: 'good', loss: 'bad', draw: 'draw' };
 
-	const latest = $derived(data.latest);
+	const recents = $derived(data.recents);
+	const latest = $derived(recents[0] ?? null);
+
+	// Flip through recent games inside the card — newest first, arrows or ←/→.
+	let index = $state(0);
+	const current = $derived(recents[Math.min(index, recents.length - 1)] ?? null);
+	const currentKey = $derived(current ? keyOf(current) : null);
+
+	function older() {
+		if (index < recents.length - 1) index++;
+	}
+	function newer() {
+		if (index > 0) index--;
+	}
+	function onKey(e: KeyboardEvent) {
+		if (recents.length < 2) return;
+		if (e.key === 'ArrowRight') older();
+		else if (e.key === 'ArrowLeft') newer();
+	}
+
+	// --- Live overlay -------------------------------------------------------
+	// Server props are immutable; all live analysis/headline results live here,
+	// keyed `source:gameId`, so a re-sync that reorders `recents` never loses
+	// them and we never mutate `data`.
+	type Phase =
+		| 'pending'
+		| 'fetching'
+		| 'analyzing'
+		| 'analyzed'
+		| 'headlineLoading'
+		| 'done'
+		| 'error';
+	type GameState = {
+		phase: Phase;
+		done: number;
+		total: number;
+		spark: number[] | null;
+		accuracy: number | null;
+		peakWin: number | null;
+		headline: string | null;
+		error: string | null;
+		animateGraph: boolean;
+	};
+
+	const states = new SvelteMap<string, GameState>();
+	const accountsSet = $derived(new Set((data.accounts ?? []).map((a) => a.toLowerCase())));
+	const recapByKey = $derived(new Map(data.recents.map((r) => [keyOf(r), r] as const)));
+
+	const EAGER_ANALYZE_CAP = 3;
+
+	function keyOf(r: { source: string; gameId: string }): string {
+		return `${r.source}:${r.gameId}`;
+	}
+
+	function patch(k: string, p: Partial<GameState>) {
+		const prev: GameState = states.get(k) ?? {
+			phase: 'pending',
+			done: 0,
+			total: 0,
+			spark: null,
+			accuracy: null,
+			peakWin: null,
+			headline: null,
+			error: null,
+			animateGraph: false
+		};
+		// Always replace the value object so `states` (a SvelteMap) re-derives.
+		states.set(k, { ...prev, ...p });
+	}
+
+	function isUntouched(k: string): boolean {
+		const s = states.get(k);
+		return !s || s.phase === 'pending';
+	}
+
+	// The merged view of the visible game: immutable recap + any live state.
+	const view = $derived.by(() => {
+		if (!current) return null;
+		const s = states.get(currentKey!);
+		const phase: Phase = s?.phase ?? (current.analyzed ? 'done' : 'pending');
+		const analyzed =
+			current.analyzed ||
+			(s ? s.phase === 'analyzed' || s.phase === 'headlineLoading' || s.phase === 'done' : false);
+		return {
+			...current,
+			phase,
+			analyzed,
+			accuracy: s?.accuracy ?? current.accuracy,
+			peakWin: s?.peakWin ?? current.peakWin,
+			spark: s?.spark ?? current.spark,
+			headline: s?.headline ?? current.headline,
+			progress: { done: s?.done ?? 0, total: s?.total ?? 0 },
+			animateGraph: s?.animateGraph ?? false,
+			error: s?.error ?? null
+		};
+	});
+
+	const isAnalyzing = $derived(view?.phase === 'fetching' || view?.phase === 'analyzing');
+	const progressPct = $derived(
+		view && view.progress.total ? (view.progress.done / view.progress.total) * 100 : 0
+	);
 
 	// Sparkline: my-POV win-% (0..100) → a polyline in a 100×30 viewBox, win up top.
 	const sparkPoints = $derived.by(() => {
-		const s = latest?.spark;
+		const s = view?.spark;
 		if (!s || s.length < 2) return null;
 		const n = s.length;
 		return s.map((v, i) => `${(i / (n - 1)) * 100},${((100 - v) / 100) * 30}`).join(' ');
@@ -46,6 +153,151 @@
 
 	function gameHref(source: string, gameId: string): string {
 		return `/review/${source}/${gameId}?me=${encodeURIComponent(data.account ?? '')}`;
+	}
+
+	// --- Orchestration ------------------------------------------------------
+	let cancelRequested = false;
+	let processing = false;
+	const queue: string[] = [];
+	// Games whose line-draw has already played — so flipping away and back
+	// doesn't replay it.
+	const hasAnimated = new SvelteSet<string>();
+
+	onMount(() => {
+		run();
+		return () => {
+			cancelRequested = true;
+		};
+	});
+
+	async function run() {
+		// 1. Auto-sync new games, then re-run the loader if any landed.
+		try {
+			const res = await fetch('/api/review/sync', { method: 'POST' });
+			if (res.ok) {
+				const { added } = (await res.json()) as { added: number };
+				if (added > 0) await invalidate('app:recents');
+			}
+		} catch {
+			// Offline / 5xx — proceed with what's already stored.
+		}
+		if (cancelRequested) return;
+		// 2. Queue the newest unanalyzed games (cap), then drain.
+		enqueueEager();
+		pump();
+	}
+
+	function enqueueEager() {
+		let count = 0;
+		for (const r of data.recents) {
+			if (count >= EAGER_ANALYZE_CAP) break;
+			const k = keyOf(r);
+			if (r.analyzed || !isUntouched(k) || queue.includes(k)) continue;
+			queue.push(k);
+			count++;
+		}
+	}
+
+	async function pump() {
+		if (processing) return;
+		processing = true;
+		try {
+			while (queue.length && !cancelRequested) {
+				await processOne(queue.shift()!);
+			}
+		} finally {
+			processing = false;
+		}
+	}
+
+	async function processOne(k: string) {
+		if (!isUntouched(k)) return; // dedupe — already running / done / errored
+		const recap = recapByKey.get(k);
+		if (!recap) return;
+
+		patch(k, { phase: 'fetching', done: 0, total: 0 });
+		try {
+			const game = await fetchGame({ source: recap.source as ReviewSource, gameId: recap.gameId });
+			if (cancelRequested) return;
+
+			patch(k, { phase: 'analyzing' });
+			const result = await analyzeGame(game, (done, total) => patch(k, { done, total }));
+			if (cancelRequested) return;
+			if (!result.ok) {
+				patch(k, { phase: 'error', error: result.error.message });
+				return;
+			}
+
+			const side = sideFor(game, accountsSet);
+			if (!side) {
+				patch(k, { phase: 'error', error: 'not your game' });
+				return;
+			}
+
+			const overlay = recapOverlayFrom(result.value, side);
+			patch(k, {
+				phase: 'analyzed',
+				animateGraph: true,
+				spark: overlay.spark,
+				accuracy: overlay.accuracy,
+				peakWin: overlay.peakWin
+			});
+
+			// Persist the analysis before the headline endpoint reads it.
+			await fetch('/api/review/analyze', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(result.value)
+			});
+			if (cancelRequested) return;
+
+			if (data.llmHeadlines) {
+				patch(k, { phase: 'headlineLoading' });
+				try {
+					const res = await fetch('/api/review/headline', {
+						method: 'POST',
+						headers: { 'content-type': 'application/json' },
+						body: JSON.stringify({ source: recap.source, gameId: recap.gameId })
+					});
+					if (res.ok) {
+						const { text } = (await res.json()) as { text: string };
+						if (text) patch(k, { headline: text });
+					}
+				} catch {
+					// Headline is non-critical — keep the template line.
+				}
+			}
+			patch(k, { phase: 'done' });
+		} catch (e) {
+			patch(k, { phase: 'error', error: e instanceof Error ? e.message : String(e) });
+		}
+	}
+
+	// On-flip lazy analysis: flipping to an untouched, unanalyzed game jumps it to
+	// the front of the queue. The engine is sequential (no preempt) — the in-flight
+	// game finishes, then this one runs.
+	$effect(() => {
+		const k = currentKey;
+		if (!k) return;
+		const recap = recapByKey.get(k);
+		if (!recap || recap.analyzed || !isUntouched(k) || queue.includes(k)) return;
+		queue.unshift(k);
+		pump();
+	});
+
+	// Line-draw the sparkline once per game, on the pending→analyzed reveal only.
+	function drawLine(key: string, animate: boolean) {
+		return (node: SVGPolylineElement) => {
+			if (!animate || hasAnimated.has(key)) return;
+			hasAnimated.add(key);
+			const len = node.getTotalLength();
+			node.style.transition = 'none';
+			node.style.strokeDasharray = `${len}`;
+			node.style.strokeDashoffset = `${len}`;
+			node.getBoundingClientRect(); // force reflow so the offset takes before we animate
+			node.style.transition = 'stroke-dashoffset 2.6s ease-out';
+			node.style.strokeDashoffset = '0';
+		};
 	}
 
 	const form = $derived(data.summary.recentForm);
@@ -81,10 +333,11 @@
 
 <svelte:head><title>Hindsight</title></svelte:head>
 
+<svelte:window onkeydown={onKey} />
+
 <div class="glow">
 	<main class="mx-auto max-w-2xl px-5 pt-10 pb-16">
 		<header class="mb-9">
-			<p class="mb-6 text-sm font-medium tracking-wide text-text-muted">Hindsight</p>
 			<h1 class="text-3xl font-semibold text-text">
 				{greeting}{#if displayName}, {displayName}{/if}.
 			</h1>
@@ -124,82 +377,125 @@
 					</button>
 				</form>
 			</section>
-		{:else if latest}
-			<!-- The hook: the latest game as a plain-English recap. -->
-			<a
-				href={gameHref(latest.source, latest.gameId)}
-				class="group block rounded-xl border border-border bg-surface-1 p-6 transition-colors hover:border-border-strong"
+		{:else if view}
+			<!-- The hook: your latest game as a plain-English recap. It comes alive on
+			     its own — auto-synced, auto-analyzed (newest first), with the win graph
+			     drawing in and the headline becoming a story. Flip back with ←/→. -->
+			<section
+				class="rounded-xl border border-border bg-surface-1 p-6"
 				style="box-shadow: var(--shadow-1);"
 			>
 				<div class="flex items-center gap-3">
 					<span
 						class="rounded-md px-2.5 py-1 text-xs font-semibold"
 						style="background: color-mix(in srgb, var(--{outcomeToken[
-							latest.outcome as Outcome
-						]}) 16%, transparent); color: var(--{outcomeToken[latest.outcome as Outcome]});"
+							view.outcome as Outcome
+						]}) 16%, transparent); color: var(--{outcomeToken[view.outcome as Outcome]});"
 					>
-						{outcomeLabel[latest.outcome as Outcome]}
+						{outcomeLabel[view.outcome as Outcome]}
 					</span>
 					<span class="min-w-0 flex-1 truncate text-base text-text-2">
-						vs {latest.opponent}
-						{#if latest.opening}<span class="text-text-muted"> · {latest.opening}</span>{/if}
+						vs {view.opponent}
+						{#if view.opening}<span class="text-text-muted"> · {view.opening}</span>{/if}
 					</span>
-					<span class="shrink-0 text-xs text-text-muted capitalize">{latest.timeClass}</span>
-				</div>
-
-				<p class="mt-4 text-xl leading-snug font-medium text-text">{latest.headline}</p>
-
-				{#if sparkPoints}
-					<svg
-						class="mt-5 h-14 w-full"
-						viewBox="0 0 100 30"
-						preserveAspectRatio="none"
-						aria-hidden="true"
-					>
-						<line
-							x1="0"
-							y1="15"
-							x2="100"
-							y2="15"
-							stroke="var(--border)"
-							stroke-width="0.5"
-							stroke-dasharray="2 2"
-							vector-effect="non-scaling-stroke"
-						/>
-						<polyline
-							points={sparkPoints}
-							fill="none"
-							stroke="var(--brand)"
-							stroke-width="1.5"
-							stroke-linejoin="round"
-							stroke-linecap="round"
-							vector-effect="non-scaling-stroke"
-						/>
-					</svg>
-				{/if}
-
-				<div class="mt-4 flex items-center gap-5 text-sm">
-					{#if latest.analyzed}
-						{#if latest.accuracy != null}
-							<span class="text-text-2"
-								>Accuracy <span class="font-semibold text-text tabular-nums"
-									>{latest.accuracy.toFixed(0)}%</span
-								></span
+					<span class="shrink-0 text-xs text-text-muted capitalize">{view.timeClass}</span>
+					{#if recents.length > 1}
+						<div class="flex shrink-0 items-center gap-1">
+							<button
+								type="button"
+								onclick={newer}
+								disabled={index === 0}
+								aria-label="Newer game"
+								class="rounded-md px-1 text-lg leading-none text-text-muted transition-colors hover:text-text disabled:opacity-30 disabled:hover:text-text-muted"
+								>‹</button
 							>
-						{/if}
-						{#if latest.peakWin != null}
-							<span class="text-text-2"
-								>Peak <span class="font-semibold text-text tabular-nums"
-									>{latest.peakWin.toFixed(0)}%</span
-								></span
+							<span class="text-xs text-text-muted tabular-nums">{index + 1}/{recents.length}</span>
+							<button
+								type="button"
+								onclick={older}
+								disabled={index === recents.length - 1}
+								aria-label="Older game"
+								class="rounded-md px-1 text-lg leading-none text-text-muted transition-colors hover:text-text disabled:opacity-30 disabled:hover:text-text-muted"
+								>›</button
 							>
-						{/if}
-					{:else}
-						<span class="text-text-muted">Not analyzed yet — open it to run the engine.</span>
+						</div>
 					{/if}
-					<span class="ml-auto font-medium text-brand">See the full game →</span>
 				</div>
-			</a>
+
+				<a
+					href={gameHref(view.source, view.gameId)}
+					class="group block transition-opacity hover:opacity-90"
+				>
+					{#key view.headline}
+						<p class="mt-4 text-xl leading-snug font-medium text-text" in:fade={{ duration: 500 }}>
+							{view.headline}
+						</p>
+					{/key}
+
+					{#if isAnalyzing}
+						<div class="mt-5 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+							<div
+								class="h-full rounded-full bg-brand transition-[width] duration-150"
+								style="width: {progressPct}%"
+							></div>
+						</div>
+					{:else if sparkPoints}
+						<svg
+							class="mt-5 h-14 w-full"
+							viewBox="0 0 100 30"
+							preserveAspectRatio="none"
+							aria-hidden="true"
+						>
+							<line
+								x1="0"
+								y1="15"
+								x2="100"
+								y2="15"
+								stroke="var(--border)"
+								stroke-width="0.5"
+								stroke-dasharray="2 2"
+								vector-effect="non-scaling-stroke"
+							/>
+							<polyline
+								{@attach drawLine(currentKey ?? '', view.animateGraph)}
+								points={sparkPoints}
+								fill="none"
+								stroke="var(--brand)"
+								stroke-width="1.5"
+								stroke-linejoin="round"
+								stroke-linecap="round"
+								vector-effect="non-scaling-stroke"
+							/>
+						</svg>
+					{/if}
+
+					<div class="mt-4 flex items-center gap-5 text-sm">
+						{#if isAnalyzing}
+							<span class="text-text-muted"
+								>Analyzing your game… {view.progress.done}/{view.progress.total}</span
+							>
+						{:else if view.analyzed}
+							{#if view.accuracy != null}
+								<span class="text-text-2" transition:fade={{ duration: 400 }}
+									>Accuracy <span class="font-semibold text-text tabular-nums"
+										>{view.accuracy.toFixed(0)}%</span
+									></span
+								>
+							{/if}
+							{#if view.peakWin != null}
+								<span class="text-text-2" transition:fade={{ duration: 400 }}
+									>Peak <span class="font-semibold text-text tabular-nums"
+										>{view.peakWin.toFixed(0)}%</span
+									></span
+								>
+							{/if}
+						{:else}
+							<span class="text-text-muted">Not analyzed yet — open it to run the engine.</span>
+						{/if}
+						<span class="ml-auto font-medium text-brand">See the full game →</span>
+					</div>
+				</a>
+			</section>
 		{:else}
 			<!-- Account linked, but nothing stored yet. -->
 			<section

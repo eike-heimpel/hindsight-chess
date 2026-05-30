@@ -495,22 +495,31 @@
 		font-variant-numeric: tabular-nums;
 	}
 
-	/* iOS-style segmented control for the primary time-class axis */
+	/* iOS-style segmented control for the primary time-class axis.
+	   Scrolls internally rather than overflowing the viewport on narrow phones. */
 	.segmented {
 		display: inline-flex;
+		max-width: 100%;
 		gap: 0.25rem;
 		padding: 0.25rem;
 		border-radius: 9999px;
 		background: var(--surface-2);
+		overflow-x: auto;
+		scrollbar-width: none;
+	}
+	.segmented::-webkit-scrollbar {
+		display: none;
 	}
 	.seg {
 		display: inline-flex;
+		flex-shrink: 0;
 		align-items: center;
 		gap: 0.4rem;
 		border-radius: 9999px;
 		padding: 0.4rem 0.95rem;
 		font-size: 0.85rem;
 		font-weight: 600;
+		white-space: nowrap;
 		color: var(--text-2);
 		transition:
 			background var(--dur),

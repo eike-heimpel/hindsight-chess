@@ -17,8 +17,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const user = await getUser(locals);
 	if (!user) throw redirect(303, '/login');
 
-	const accounts = user.reviewAccounts;
-	const games = await listGamesForAccounts(accounts);
+	// Scoped to the active profile — platforms stay separate.
+	const active = user.activeAccount;
+	const accounts = active ? [active.username] : [];
+	const games = active ? await listGamesForAccounts([active]) : [];
 	const analyses = await getAnalysesByIds(
 		games.map((g) => ({ source: g.source, gameId: g.gameId }))
 	);

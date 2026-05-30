@@ -75,7 +75,8 @@ export function normalize(raw: RawGame): ReviewGame {
 		timeControl,
 		rated: raw.rated,
 		eco: h.ECO ?? undefined,
-		opening: openingName(h.ECOUrl),
+		// chess.com gives an ECOUrl slug; lichess gives the name in [Opening] directly.
+		opening: openingName(h.ECOUrl) ?? h.Opening ?? undefined,
 		white: player(h.White, h.WhiteElo),
 		black: player(h.Black, h.BlackElo),
 		result: (h.Result ?? '*') as GameResult,
