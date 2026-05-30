@@ -76,3 +76,31 @@ export function getBetterAuthUrl(): string {
 export function useBetterAuth(): boolean {
 	return useMongo() && !!env.BETTER_AUTH_SECRET && !!env.BETTER_AUTH_URL;
 }
+
+export function getPostmarkApiToken(): string {
+	const token = env.POSTMARK_API_TOKEN;
+	if (!token) {
+		throw new Error('POSTMARK_API_TOKEN is not set. Add it to .env (the user manages this file).');
+	}
+	return token;
+}
+
+export function getEmailFrom(): string {
+	const from = env.EMAIL_FROM;
+	if (!from) {
+		throw new Error('EMAIL_FROM is not set. Add it to .env (the user manages this file).');
+	}
+	return from;
+}
+
+/** Postmark message stream to send on. Defaults to the built-in transactional
+ *  `outbound` stream; set `POSTMARK_MESSAGE_STREAM` to use a custom stream. */
+export function getPostmarkMessageStream(): string {
+	return env.POSTMARK_MESSAGE_STREAM || 'outbound';
+}
+
+/** Whether outbound email can be sent (Postmark token + a verified From). When
+ *  false, the email seam logs in dev and fails fast in production. */
+export function useEmail(): boolean {
+	return !!env.POSTMARK_API_TOKEN && !!env.EMAIL_FROM;
+}
