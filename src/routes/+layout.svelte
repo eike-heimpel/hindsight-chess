@@ -71,7 +71,7 @@
 				aria-label="Open menu"
 				onclick={() => (navOpen = true)}
 				transition:fade={{ duration: 120 }}
-				class="flex size-11 items-center justify-center rounded-full border border-border bg-surface-1/80 text-base font-bold tracking-tight text-text-2 shadow-lg shadow-black/30 backdrop-blur-md transition-colors hover:text-text active:bg-surface-2"
+				class="flex size-11 items-center justify-center rounded-full border border-border bg-surface-1/80 font-display text-lg font-semibold tracking-tight text-text-2 shadow-lg shadow-black/30 backdrop-blur-md transition-colors hover:text-text active:bg-surface-2"
 			>
 				H
 			</button>
@@ -96,7 +96,7 @@
 			class="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl border-t border-border bg-surface-2 p-2 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl shadow-black/50 sm:inset-x-0 sm:bottom-[max(1rem,env(safe-area-inset-bottom))] sm:mx-auto sm:w-64 sm:rounded-2xl sm:border"
 		>
 			<div
-				class="mx-auto mb-1 flex size-11 items-center justify-center rounded-full border border-border bg-surface-1 text-base font-bold tracking-tight text-text"
+				class="mx-auto mb-1 flex size-11 items-center justify-center rounded-full border border-border bg-surface-1 font-display text-lg font-semibold tracking-tight text-text"
 				aria-hidden="true"
 			>
 				H

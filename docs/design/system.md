@@ -110,8 +110,17 @@ collides with win/loss semantics. It's the single easiest token to retune.
 
 ## Type
 
-- **`--font-sans`**: Inter (UI). **`--font-mono`**: a clean mono for SAN notation
-  and raw figures (e.g. IBM Plex Mono). Optionally `--font-display` = sans.
+Type carries the two-layer rule: a warm serif on the surface, a sharp sans+mono
+in the depth. All three are self-hosted via `@fontsource` (no external requests),
+imported at the top of `layout.css`.
+
+- **`--font-display`**: **Fraunces Variable** (serif) — the wordmark and surface
+  headlines (hero, dashboard greeting, section titles). Carries the calm/premium
+  warmth. Variable `opsz` axis + `font-optical-sizing: auto`, so large cuts pick
+  up the high-contrast display shapes. Apply it deliberately on the surface
+  layer; never on data/figures. Use `tracking-tight` and weight 500–600.
+- **`--font-sans`**: **Inter Variable** (UI, body) — the depth layer.
+- **`--font-mono`**: **IBM Plex Mono** — SAN notation and raw figures.
 - **Tabular figures everywhere numbers align**: `font-variant-numeric:
 tabular-nums` on all stats/tables. Non-negotiable for an analyst-grade feel.
 - Scale (rem, 16px root): `xs .75` · `sm .8125` · `base .9375` · `md 1` ·
