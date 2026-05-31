@@ -41,7 +41,7 @@
 	/>
 </svelte:head>
 
-<main class="mx-auto flex min-h-screen max-w-md flex-col px-6 pt-8 pb-12">
+<main class="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-6 pt-8 pb-12">
 	<header in:fade={{ duration: 500 }} class="flex items-center justify-between">
 		<span class="font-display text-base font-medium tracking-tight text-text-2">
 			Hindsight<span class="text-brand">.</span>
@@ -51,37 +51,44 @@
 		</a>
 	</header>
 
-	<div class="mt-10">
-		<h1
-			in:fly={{ y: 8, duration: 600, easing: cubicOut }}
-			class="font-display text-3xl font-semibold tracking-tight text-balance text-text sm:text-4xl"
-		>
-			See how you really played.
-		</h1>
-		<p
-			in:fly={{ y: 8, duration: 600, delay: 90, easing: cubicOut }}
-			class="mt-3 text-lg text-text-2"
-		>
-			Judged against a better <span class="text-text">you</span> — not a machine.
-		</p>
-	</div>
-
-	<div class="mt-8" in:fade={{ duration: 700, delay: 260 }}>
-		<ConnectProfile mode="teaser" {example} onRevealed={(sel) => (connectSel = sel)} />
-	</div>
-
-	{#if connectSel}
-		<div class="mt-7" in:fly={{ y: 8, duration: 500, easing: cubicOut }}>
-			<a
-				href={connectHref}
-				class="inline-flex w-fit items-center gap-2 rounded-lg bg-brand px-5 py-2.5 font-medium text-white transition-colors hover:bg-brand-hover"
+	<!-- Two-column hero on desktop: the promise on the left, the live "type your
+	     username → watch your last game" teaser on the right. On narrow screens
+	     it collapses to a single stacked column (copy, then the teaser). -->
+	<div
+		class="grid flex-1 gap-12 pt-12 lg:grid-cols-2 lg:items-start lg:gap-16 lg:pt-0 lg:[align-content:center]"
+	>
+		<div>
+			<h1
+				in:fly={{ y: 8, duration: 600, easing: cubicOut }}
+				class="font-display text-3xl font-semibold tracking-tight text-balance text-text sm:text-4xl lg:text-display"
 			>
-				Save this — and every game <span aria-hidden="true">→</span>
-			</a>
-			<p class="mt-3 text-sm text-text-muted">
-				We'll email a sign-in link — no password. Every game you play lands here, ready when you
-				come back.
+				See how you really played.
+			</h1>
+			<p
+				in:fly={{ y: 8, duration: 600, delay: 90, easing: cubicOut }}
+				class="mt-3 max-w-md text-lg text-text-2 lg:text-xl"
+			>
+				Judged against a better <span class="text-text">you</span> — not a machine.
 			</p>
 		</div>
-	{/if}
+
+		<div in:fade={{ duration: 700, delay: 260 }}>
+			<ConnectProfile mode="teaser" {example} onRevealed={(sel) => (connectSel = sel)} />
+
+			{#if connectSel}
+				<div class="mt-7" in:fly={{ y: 8, duration: 500, easing: cubicOut }}>
+					<a
+						href={connectHref}
+						class="inline-flex w-fit items-center gap-2 rounded-lg bg-brand px-5 py-2.5 font-medium text-white transition-colors hover:bg-brand-hover"
+					>
+						Save this — and every game <span aria-hidden="true">→</span>
+					</a>
+					<p class="mt-3 text-sm text-text-muted">
+						We'll email a sign-in link — no password. Every game you play lands here, ready when
+						you come back.
+					</p>
+				</div>
+			{/if}
+		</div>
+	</div>
 </main>
