@@ -37,7 +37,9 @@
 <svelte:head><title>Sign in · Hindsight</title></svelte:head>
 
 <main class="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-8">
-	<h1 class="mb-1 text-2xl font-bold text-text">Sign in to Hindsight</h1>
+	<h1 class="mb-1 font-display text-2xl font-semibold tracking-tight text-text">
+		Sign in to Hindsight
+	</h1>
 	<p class="mb-6 text-sm text-text-muted">We’ll email you a magic link — no password needed.</p>
 
 	{#if data.connect}

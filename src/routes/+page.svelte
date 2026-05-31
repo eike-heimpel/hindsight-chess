@@ -43,7 +43,7 @@
 
 <main class="mx-auto flex min-h-screen max-w-md flex-col px-6 pt-8 pb-12">
 	<header in:fade={{ duration: 500 }} class="flex items-center justify-between">
-		<span class="text-sm font-semibold tracking-wide text-text-2">
+		<span class="font-display text-base font-medium tracking-tight text-text-2">
 			Hindsight<span class="text-brand">.</span>
 		</span>
 		<a href="/login" class="text-sm font-medium text-text-2 transition-colors hover:text-text">
@@ -54,7 +54,7 @@
 	<div class="mt-10">
 		<h1
 			in:fly={{ y: 8, duration: 600, easing: cubicOut }}
-			class="text-3xl font-semibold tracking-tight text-balance text-text sm:text-4xl"
+			class="font-display text-3xl font-semibold tracking-tight text-balance text-text sm:text-4xl"
 		>
 			See how you really played.
 		</h1>

@@ -70,7 +70,7 @@
 				aria-expanded={navOpen}
 				onclick={() => (navOpen = true)}
 				transition:fade={{ duration: 100 }}
-				class="flex items-center gap-1.5 rounded-md bg-surface-1/70 px-2.5 py-1.5 text-sm font-semibold tracking-wide text-text-2 backdrop-blur-sm transition-colors hover:text-text active:bg-surface-2"
+				class="flex items-center gap-1.5 rounded-md bg-surface-1/70 px-2.5 py-1.5 font-display text-base font-medium tracking-tight text-text-2 backdrop-blur-sm transition-colors hover:text-text active:bg-surface-2"
 			>
 				Hindsight
 				<svg viewBox="0 0 16 16" fill="none" class="size-3 text-text-muted" aria-hidden="true">

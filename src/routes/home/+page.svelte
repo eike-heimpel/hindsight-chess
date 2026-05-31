@@ -367,7 +367,7 @@
 <div class="glow">
 	<main class="mx-auto max-w-2xl px-5 pt-10 pb-16">
 		<header class="mb-9">
-			<h1 class="text-3xl font-semibold text-text">
+			<h1 class="font-display text-3xl font-semibold tracking-tight text-text">
 				{greeting}{#if displayName}, {displayName}{/if}.
 			</h1>
 			<p class="mt-2 text-md text-text-2">
@@ -388,7 +388,9 @@
 				class="rounded-xl border border-border bg-surface-1 p-6"
 				style="box-shadow: var(--shadow-1);"
 			>
-				<h2 class="text-lg font-semibold text-text">Bring your games home</h2>
+				<h2 class="font-display text-lg font-semibold tracking-tight text-text">
+					Bring your games home
+				</h2>
 				<p class="mt-1 mb-4 text-base text-text-2">
 					Connect chess.com or Lichess and see how you really played.
 				</p>
@@ -435,7 +437,7 @@
 				class="rounded-xl border border-border bg-surface-1 p-6"
 				style="box-shadow: var(--shadow-1);"
 			>
-				<h2 class="text-lg font-semibold text-text">No games yet</h2>
+				<h2 class="font-display text-lg font-semibold tracking-tight text-text">No games yet</h2>
 				<p class="mt-1 mb-4 text-base text-text-2">Pull your history and your home fills up.</p>
 				<a
 					href="/account"

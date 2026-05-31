@@ -23,12 +23,20 @@ One concept per file, each with a reference header linking the others.
 - **Mood:** calm & premium surface, data-dense depth-on-demand.
 - **Theme:** dark-first; light is a first-class second via semantic tokens.
 - **Density:** approachable by default, richness revealed when you dig in.
+- **Name / wordmark:** **Hindsight** — set in the display serif, with a brand-
+  violet full stop ("Hindsight**.**"). The period is the brand: the full stop
+  after the game.
+- **Logo:** the **violet dot** — that same full stop as a standalone mark, one
+  lit point on a dark board. Brand violet, never the result-green it forbids.
+  Lives in `static/icon.svg` (app/PWA) + `src/lib/assets/favicon.svg` (tab).
+- **Type:** Fraunces (display serif) on the surface, Inter + IBM Plex Mono in the
+  depth — see [system.md](./system.md#type).
 
 ## Open / tunable (deliberately)
 
 - The **brand accent hue** — set as a single token, swap it without refactoring.
-- **Board colors**, **fonts** — starting values in system.md, easy to retune.
-- **Name / wordmark** — not decided; out of scope for now.
+  (The logo + wordmark period track this token's value.)
+- **Board colors** — starting values in system.md, easy to retune.
 
 ## Status
 
