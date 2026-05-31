@@ -15,6 +15,7 @@
 	} from '$lib/client/recapReveal';
 	import RecapCard from '$lib/review/RecapCard.svelte';
 	import ConnectProfile from '$lib/review/ConnectProfile.svelte';
+	import { parseConnect } from '$lib/review/connectIntent';
 	import type { ReviewSource } from '$lib/review/types';
 	import type { PageData } from './$types';
 
@@ -132,33 +133,25 @@
 		};
 	});
 
-	// First load after sign-in may carry `?connect=source:username` from the
-	// landing teaser — link that profile once, then drop the param so a reload
-	// never retries it.
+	// First load after sign-in may carry the connect intent from the landing
+	// teaser — link that profile once, then drop the params so a reload never
+	// retries it.
 	async function consumeConnect() {
 		if (data.mock) return;
 		// One-shot URL parse, not reactive state — a plain URL is right here.
 		const url = new URL(window.location.href);
-		const raw = url.searchParams.get('connect');
-		if (!raw) return;
+		const intent = parseConnect(url.searchParams);
+		if (!intent) return;
 
-		url.searchParams.delete('connect');
+		url.searchParams.delete('connect_source');
+		url.searchParams.delete('connect_username');
 		history.replaceState(null, '', url.pathname + url.search);
-
-		const i = raw.indexOf(':');
-		if (i <= 0) return;
-		const source = raw.slice(0, i);
-		const username = raw
-			.slice(i + 1)
-			.trim()
-			.toLowerCase();
-		if (!username) return;
 
 		try {
 			const res = await fetch('/api/review/connect', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ source, username })
+				body: JSON.stringify({ source: intent.source, username: intent.username })
 			});
 			if (res.ok) await invalidate('app:recents');
 		} catch {

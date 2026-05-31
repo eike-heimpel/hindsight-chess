@@ -7,7 +7,7 @@ import type { ReviewSource } from '$lib/review/types';
 
 /**
  * POST /api/review/connect — link the profile a visitor typed on the landing
- * page, carried through the magic link as `?connect=`. Called by the home page
+ * page, carried through the magic link as connect query params. Called by the home page
  * once, right after sign-in. Authoritative: it re-validates and imports server-
  * side (the anonymous teaser stored nothing).
  */

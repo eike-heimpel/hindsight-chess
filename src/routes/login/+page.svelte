@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { dev } from '$app/environment';
 	import { authClient } from '$lib/client/authClient';
+	import { withConnect } from '$lib/review/connectIntent';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -14,11 +15,7 @@
 	// Carry the username typed on the landing page through the magic link, so the
 	// account auto-links after sign-in (works cross-device — Better Auth stores
 	// the callbackURL with the verification token).
-	const callbackURL = $derived(
-		data.connect
-			? `/home?connect=${encodeURIComponent(`${data.connect.source}:${data.connect.username}`)}`
-			: '/home'
-	);
+	const callbackURL = $derived(withConnect('/home', data.connect));
 
 	async function submit(e: SubmitEvent) {
 		e.preventDefault();

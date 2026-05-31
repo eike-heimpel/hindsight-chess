@@ -5,32 +5,32 @@
 	import { cubicOut } from 'svelte/easing';
 	import ConnectProfile, { type ConnectSelection } from '$lib/review/ConnectProfile.svelte';
 	import { type RecapView } from '$lib/review/RecapCard.svelte';
+	import { withConnect } from '$lib/review/connectIntent';
 
-	// One of Eike's real rapid losses, shown as the pre-submit hero: a jagged climb
-	// to a clearly-winning 94%, a sharp cliff off the peak, then a long slide. It's
-	// what a visitor gets a version of once they type their own username.
+	// A genuine rapid loss of the dogfooding account (Timbolt123 vs sanjar1hdd,
+	// chess.com game 169233716058), run through the exact teaser pipeline at
+	// LIGHT_DEPTH — so this is literally what a visitor gets a version of once they
+	// type their own username, not a stylized mock. Regenerate with:
+	//   npx tsx scripts/build-landing-example.ts Timbolt123 169233716058
 	const example: RecapView = {
 		outcome: 'loss',
 		opponent: 'sanjar1hdd',
-		opening: "Van 't Kruijs Opening",
+		opening: 'Van t Kruijs Opening 1...g6',
 		timeClass: 'rapid',
-		headline: 'You were winning — up to 94% around move 17 — then it slipped away.',
+		headline: 'You were winning — up to 93% around move 17 — then it slipped away.',
 		spark: [
-			50, 54, 49, 56, 52, 60, 55, 64, 59, 69, 63, 73, 68, 78, 74, 84, 80, 90, 94, 91, 56, 61, 53,
-			58, 50, 55, 47, 52, 45, 50, 43, 47, 41, 45, 39, 43, 38, 41, 36, 39, 34, 32, 30, 28, 27, 25,
-			24, 23, 22, 21, 20, 19, 18
+			47, 48, 47, 52, 51, 55, 53, 58, 57, 58, 53, 62, 61, 71, 66, 68, 66, 71, 65, 77, 68, 78, 72,
+			71, 68, 91, 88, 90, 89, 93, 86, 93, 88, 85, 17, 15, 16, 23, 30, 25, 28, 35, 16, 15, 11, 16, 8,
+			18, 17, 18, 12, 13, 14, 19, 19, 18, 15, 17, 13, 14, 11, 12, 7, 7, 4, 3, 0, 0, 0, 0, 0, 0, 0,
+			1, 1, 5, 4, 3, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0
 		],
-		peakWin: 94,
-		accuracy: 66,
+		peakWin: 93,
+		accuracy: 70,
 		analyzed: true
 	};
 
 	let connectSel = $state<ConnectSelection | null>(null);
-	const connectHref = $derived(
-		connectSel
-			? `/login?connect=${encodeURIComponent(`${connectSel.source}:${connectSel.username}`)}`
-			: '/login'
-	);
+	const connectHref = $derived(withConnect('/login', connectSel));
 </script>
 
 <svelte:head>
