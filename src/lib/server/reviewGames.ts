@@ -53,6 +53,13 @@ const accountFilter = (a: ReviewAccount) => ({
 	accounts: a.username.toLowerCase()
 });
 
+/** How many games are stored for a profile — for the account page's per-profile
+ *  card. */
+export async function countGamesForAccount(account: ReviewAccount): Promise<number> {
+	const c = await collection();
+	return c.countDocuments(accountFilter(account));
+}
+
 export async function listRecentGames(account: ReviewAccount, limit = 20): Promise<ReviewGame[]> {
 	const c = await collection();
 	const docs = await c.find(accountFilter(account)).sort({ playedAt: -1 }).limit(limit).toArray();

@@ -9,13 +9,24 @@
 	let status = $state<'idle' | 'sending' | 'sent' | 'error'>('idle');
 	let message = $state('');
 
+	const platformLabel = (s: string) => (s === 'lichess' ? 'Lichess' : 'Chess.com');
+
+	// Carry the username typed on the landing page through the magic link, so the
+	// account auto-links after sign-in (works cross-device — Better Auth stores
+	// the callbackURL with the verification token).
+	const callbackURL = $derived(
+		data.connect
+			? `/home?connect=${encodeURIComponent(`${data.connect.source}:${data.connect.username}`)}`
+			: '/home'
+	);
+
 	async function submit(e: SubmitEvent) {
 		e.preventDefault();
 		if (status === 'sending') return;
 		status = 'sending';
 		const { error } = await authClient.signIn.magicLink({
 			email: email.trim(),
-			callbackURL: '/home'
+			callbackURL
 		});
 		if (error) {
 			status = 'error';
@@ -31,6 +42,16 @@
 <main class="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-8">
 	<h1 class="mb-1 text-2xl font-bold text-text">Sign in to Hindsight</h1>
 	<p class="mb-6 text-sm text-text-muted">We’ll email you a magic link — no password needed.</p>
+
+	{#if data.connect}
+		<p
+			class="mb-6 rounded-lg px-3 py-2 text-sm text-text-2"
+			style="background: color-mix(in srgb, var(--brand) 10%, transparent);"
+		>
+			We’ll connect <span class="font-medium text-text">{data.connect.username}</span> on
+			{platformLabel(data.connect.source)} once you sign in.
+		</p>
+	{/if}
 
 	{#if !data.authConfigured}
 		<p

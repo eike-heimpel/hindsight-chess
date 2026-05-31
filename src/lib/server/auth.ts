@@ -1,5 +1,5 @@
-import { error } from '@sveltejs/kit';
-import { useBetterAuth } from './env.ts';
+import { error, redirect } from '@sveltejs/kit';
+import { useBetterAuth, useMongo } from './env.ts';
 import { getReviewAccountsState, setActiveAccount, setReviewAccounts } from './reviewAccounts.ts';
 import type { ReviewAccount } from '$lib/review/types';
 
@@ -35,6 +35,16 @@ export async function requireUser(locals: App.Locals): Promise<User> {
 	if (!useBetterAuth()) throw error(503, 'auth not configured');
 	const user = await getUser(locals);
 	if (!user) throw error(401, 'unauthorized');
+	return user;
+}
+
+/** Page-loader guard: 503 if Mongo is unconfigured, redirect to /login without a
+ *  session. The form-action / page counterpart to `requireUser` (which throws a
+ *  401 JSON error, right for API endpoints). */
+export async function requireUserOrRedirect(locals: App.Locals): Promise<User> {
+	if (!useMongo()) throw error(503, 'mongo not configured');
+	const user = await getUser(locals);
+	if (!user) throw redirect(303, '/login');
 	return user;
 }
 

@@ -19,5 +19,6 @@ export function sourceFor(source: ReviewSource): GameSource {
 	return make();
 }
 
-/** Sources a user can actually link / import from, in display order. */
-export const IMPORTABLE_SOURCES: ReviewSource[] = ['chesscom', 'lichess'];
+// Re-exported for server callers that already import it from here; the source of
+// truth is `types.ts` so browser code can use it without dragging in adapters.
+export { IMPORTABLE_SOURCES } from '../types';

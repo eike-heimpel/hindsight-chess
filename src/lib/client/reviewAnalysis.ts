@@ -18,9 +18,15 @@ import { safeEvaluate } from './engine';
  */
 export const REVIEW_DEPTH = 16;
 
+/** Shallow pass for the anonymous landing teaser: an order of magnitude faster
+ *  than REVIEW_DEPTH, enough for a recognisable win-% arc. The real, persisted
+ *  analysis after login always runs at REVIEW_DEPTH. */
+export const LIGHT_DEPTH = 10;
+
 export async function analyzeGame(
 	game: ReviewGame,
-	onProgress?: (done: number, total: number) => void
+	onProgress?: (done: number, total: number) => void,
+	depth: number = REVIEW_DEPTH
 ): Promise<Result<GameAnalysis>> {
 	const { moves } = game;
 	if (moves.length === 0) return err('engine_failed', 'game has no moves to analyze');
@@ -33,16 +39,14 @@ export async function analyzeGame(
 		if (terminal) {
 			evals.push(terminal);
 		} else {
-			const r = await safeEvaluate(fens[k], { depth: REVIEW_DEPTH });
+			const r = await safeEvaluate(fens[k], { depth });
 			if (!r.ok) return err(r.error.kind, r.error.message);
 			evals.push(r.value);
 		}
 		onProgress?.(k + 1, fens.length);
 	}
 
-	return ok(
-		buildAnalysis({ source: game.source, gameId: game.gameId, depth: REVIEW_DEPTH, moves, evals })
-	);
+	return ok(buildAnalysis({ source: game.source, gameId: game.gameId, depth, moves, evals }));
 }
 
 /** Engine returns no move for terminal positions; encode the outcome directly.

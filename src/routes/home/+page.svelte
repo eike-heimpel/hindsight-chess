@@ -4,12 +4,17 @@
 	 * as /review's game links. */
 	import { onMount } from 'svelte';
 	import { invalidate } from '$app/navigation';
-	import { fade, fly } from 'svelte/transition';
-	import { cubicOut } from 'svelte/easing';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
-	import { analyzeGame } from '$lib/client/reviewAnalysis';
 	import { fetchGame } from '$lib/client/reviewStats';
-	import { recapOverlayFrom, sideFor } from '$lib/review/stats/perspective';
+	import {
+		drawLine as drawLineReveal,
+		initialState,
+		revealGame,
+		type GameState,
+		type Phase
+	} from '$lib/client/recapReveal';
+	import RecapCard from '$lib/review/RecapCard.svelte';
+	import ConnectProfile from '$lib/review/ConnectProfile.svelte';
 	import type { ReviewSource } from '$lib/review/types';
 	import type { PageData } from './$types';
 
@@ -38,10 +43,6 @@
 		return `on ${dateFmt.format(d)}`;
 	}
 
-	type Outcome = 'win' | 'loss' | 'draw';
-	const outcomeLabel: Record<Outcome, string> = { win: 'Won', loss: 'Lost', draw: 'Drew' };
-	const outcomeToken: Record<Outcome, string> = { win: 'good', loss: 'bad', draw: 'draw' };
-
 	const recents = $derived(data.recents);
 	const latest = $derived(recents[0] ?? null);
 
@@ -65,27 +66,8 @@
 	// --- Live overlay -------------------------------------------------------
 	// Server props are immutable; all live analysis/headline results live here,
 	// keyed `source:gameId`, so a re-sync that reorders `recents` never loses
-	// them and we never mutate `data`.
-	type Phase =
-		| 'pending'
-		| 'fetching'
-		| 'analyzing'
-		| 'analyzed'
-		| 'headlineLoading'
-		| 'done'
-		| 'error';
-	type GameState = {
-		phase: Phase;
-		done: number;
-		total: number;
-		spark: number[] | null;
-		accuracy: number | null;
-		peakWin: number | null;
-		headline: string | null;
-		error: string | null;
-		animateGraph: boolean;
-	};
-
+	// them and we never mutate `data`. The phase machine + reveal live in
+	// `recapReveal` so the landing teaser runs the same code.
 	const states = new SvelteMap<string, GameState>();
 	const accountsSet = $derived(new Set((data.accounts ?? []).map((a) => a.toLowerCase())));
 	const recapByKey = $derived(new Map(data.recents.map((r) => [keyOf(r), r] as const)));
@@ -97,17 +79,7 @@
 	}
 
 	function patch(k: string, p: Partial<GameState>) {
-		const prev: GameState = states.get(k) ?? {
-			phase: 'pending',
-			done: 0,
-			total: 0,
-			spark: null,
-			accuracy: null,
-			peakWin: null,
-			headline: null,
-			error: null,
-			animateGraph: false
-		};
+		const prev: GameState = states.get(k) ?? initialState();
 		// Always replace the value object so `states` (a SvelteMap) re-derives.
 		states.set(k, { ...prev, ...p });
 	}
@@ -140,32 +112,6 @@
 	});
 
 	const isAnalyzing = $derived(view?.phase === 'fetching' || view?.phase === 'analyzing');
-	const progressPct = $derived(
-		view && view.progress.total ? (view.progress.done / view.progress.total) * 100 : 0
-	);
-
-	// Sparkline: my-POV win-% (0..100) → a polyline in a 100×30 viewBox, win up top.
-	const sparkPoints = $derived.by(() => {
-		const s = view?.spark;
-		if (!s || s.length < 2) return null;
-		const n = s.length;
-		return s.map((v, i) => `${(i / (n - 1)) * 100},${((100 - v) / 100) * 30}`).join(' ');
-	});
-
-	// The peak win-% point, as percentages over the chart, for an in-graph label.
-	// (The SVG is preserveAspectRatio="none", so we overlay HTML instead of <text>.)
-	const peakMarker = $derived.by(() => {
-		const s = view?.spark;
-		if (!s || s.length < 2 || view?.peakWin == null) return null;
-		let bi = 0;
-		for (let i = 1; i < s.length; i++) if (s[i] > s[bi]) bi = i;
-		const x = (bi / (s.length - 1)) * 100; // % across width
-		const y = 100 - s[bi]; // % down (spark is 0..100, win up top)
-		// Keep the label inside the card: left-align near the start, right-align
-		// near the end, centered otherwise.
-		const tx = x < 15 ? '0' : x > 85 ? '-100%' : '-50%';
-		return { x, y, value: s[bi], tx };
-	});
 
 	function gameHref(source: string, gameId: string): string {
 		return `/review/${source}/${gameId}?me=${encodeURIComponent(data.account ?? '')}`;
@@ -186,7 +132,43 @@
 		};
 	});
 
+	// First load after sign-in may carry `?connect=source:username` from the
+	// landing teaser — link that profile once, then drop the param so a reload
+	// never retries it.
+	async function consumeConnect() {
+		if (data.mock) return;
+		// One-shot URL parse, not reactive state — a plain URL is right here.
+		const url = new URL(window.location.href);
+		const raw = url.searchParams.get('connect');
+		if (!raw) return;
+
+		url.searchParams.delete('connect');
+		history.replaceState(null, '', url.pathname + url.search);
+
+		const i = raw.indexOf(':');
+		if (i <= 0) return;
+		const source = raw.slice(0, i);
+		const username = raw
+			.slice(i + 1)
+			.trim()
+			.toLowerCase();
+		if (!username) return;
+
+		try {
+			const res = await fetch('/api/review/connect', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ source, username })
+			});
+			if (res.ok) await invalidate('app:recents');
+		} catch {
+			// Best-effort — the user can still link from /account.
+		}
+	}
+
 	async function run() {
+		await consumeConnect();
+		if (cancelRequested) return;
 		// 1. Auto-sync new games, then re-run the loader if any landed.
 		//    (Skipped in mock mode — there's no real account to sync.)
 		if (!data.mock) {
@@ -301,34 +283,18 @@
 			const game = await fetchGame({ source: recap.source as ReviewSource, gameId: recap.gameId });
 			if (cancelRequested) return;
 
-			patch(k, { phase: 'analyzing' });
-			const result = await analyzeGame(game, (done, total) => patch(k, { done, total }));
-			if (cancelRequested) return;
-			if (!result.ok) {
-				patch(k, { phase: 'error', error: result.error.message });
-				return;
-			}
-
-			const side = sideFor(game, accountsSet);
-			if (!side) {
-				patch(k, { phase: 'error', error: 'not your game' });
-				return;
-			}
-
-			const overlay = recapOverlayFrom(result.value, side);
-			patch(k, {
-				phase: 'analyzed',
-				animateGraph: true,
-				spark: overlay.spark,
-				accuracy: overlay.accuracy,
-				peakWin: overlay.peakWin
+			const revealed = await revealGame(game, {
+				accounts: accountsSet,
+				onPatch: (p) => patch(k, p),
+				cancelled: () => cancelRequested
 			});
+			if (!revealed.ok || cancelRequested) return;
 
 			// Persist the analysis before the headline endpoint reads it.
 			await fetch('/api/review/analyze', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify(result.value)
+				body: JSON.stringify(revealed.analysis)
 			});
 			if (cancelRequested) return;
 
@@ -366,32 +332,9 @@
 		pump();
 	});
 
-	// Line-draw the sparkline once per game, on the pending→analyzed reveal only.
-	function drawLine(key: string, animate: boolean) {
-		return (node: SVGPolylineElement) => {
-			if (!animate || hasAnimated.has(key)) return;
-			hasAnimated.add(key);
-			// preserveAspectRatio="none" + non-scaling-stroke means the dash is measured in
-			// screen pixels, while getTotalLength() is in viewBox units — the mismatch makes
-			// the dash repeat into gaps. Compute the rendered pixel length of the polyline.
-			const rect = (node.ownerSVGElement ?? node).getBoundingClientRect();
-			const sx = rect.width / 100;
-			const sy = rect.height / 30;
-			const pts = node.points;
-			let len = 0;
-			for (let i = 1; i < pts.numberOfItems; i++) {
-				const a = pts.getItem(i - 1);
-				const b = pts.getItem(i);
-				len += Math.hypot((b.x - a.x) * sx, (b.y - a.y) * sy);
-			}
-			node.style.transition = 'none';
-			node.style.strokeDasharray = `${len}`;
-			node.style.strokeDashoffset = `${len}`;
-			node.getBoundingClientRect(); // force reflow so the offset takes before we animate
-			node.style.transition = 'stroke-dashoffset 2.6s ease-out';
-			node.style.strokeDashoffset = '0';
-		};
-	}
+	// Line-draw the sparkline once per game (deduped via `hasAnimated`), on the
+	// pending→analyzed reveal only.
+	const drawLine = (key: string, animate: boolean) => drawLineReveal(key, animate, hasAnimated);
 
 	const form = $derived(data.summary.recentForm);
 	const hasForm = $derived(form.win + form.draw + form.loss > 0);
@@ -446,52 +389,30 @@
 		</header>
 
 		{#if data.needsAccount}
-			<!-- Onboarding: the link form lives on /review; post straight to its action. -->
+			<!-- Onboarding: same ConnectProfile reveal the landing uses, posting to the
+			     account action (which imports, then lands back here on the recap). -->
 			<section
 				class="rounded-xl border border-border bg-surface-1 p-6"
 				style="box-shadow: var(--shadow-1);"
 			>
-				<h2 class="text-lg font-semibold text-text">Link your chess.com account</h2>
+				<h2 class="text-lg font-semibold text-text">Bring your games home</h2>
 				<p class="mt-1 mb-4 text-base text-text-2">
-					We’ll pull your games and show you how you really played.
+					Connect chess.com or Lichess and see how you really played.
 				</p>
-				<form method="POST" action="/review?/addAccount" class="flex flex-wrap items-center gap-2">
-					<input
-						name="username"
-						placeholder="your chess.com username"
-						autocomplete="off"
-						class="flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-text focus:border-border-strong focus:outline-none"
-					/>
-					<button
-						type="submit"
-						class="rounded-lg bg-brand px-4 py-2 font-medium text-white hover:bg-brand-hover"
-					>
-						Link account
-					</button>
-				</form>
+				<ConnectProfile mode="link" action="/account?/addAccount" />
 			</section>
 		{:else if view}
 			<!-- The hook: your latest game as a plain-English recap. It comes alive on
 			     its own — auto-synced, auto-analyzed (newest first), with the win graph
 			     drawing in and the headline becoming a story. Flip back with ←/→. -->
-			<section
-				class="rounded-xl border border-border bg-surface-1 p-6"
-				style="box-shadow: var(--shadow-1);"
+			<RecapCard
+				recap={view}
+				href={gameHref(view.source, view.gameId)}
+				analyzing={isAnalyzing}
+				progress={view.progress}
+				lineAttach={drawLine(currentKey ?? '', view.animateGraph)}
 			>
-				<div class="flex items-center gap-3">
-					<span
-						class="rounded-md px-2.5 py-1 text-xs font-semibold"
-						style="background: color-mix(in srgb, var(--{outcomeToken[
-							view.outcome as Outcome
-						]}) 16%, transparent); color: var(--{outcomeToken[view.outcome as Outcome]});"
-					>
-						{outcomeLabel[view.outcome as Outcome]}
-					</span>
-					<span class="min-w-0 flex-1 truncate text-base text-text-2">
-						vs {view.opponent}
-						{#if view.opening}<span class="text-text-muted"> · {view.opening}</span>{/if}
-					</span>
-					<span class="shrink-0 text-xs text-text-muted capitalize">{view.timeClass}</span>
+				{#snippet pager()}
 					{#if recents.length > 1}
 						<div class="flex shrink-0 items-center gap-1">
 							<button
@@ -513,97 +434,8 @@
 							>
 						</div>
 					{/if}
-				</div>
-
-				<a
-					href={gameHref(view.source, view.gameId)}
-					class="group block transition-opacity hover:opacity-90"
-				>
-					<div class="mt-4 grid">
-						{#key view.headline}
-							<p
-								class="col-start-1 row-start-1 text-xl leading-snug font-medium text-text"
-								in:fly={{ y: 10, duration: 500, delay: 120, easing: cubicOut }}
-								out:fade={{ duration: 200 }}
-							>
-								{view.headline}
-							</p>
-						{/key}
-					</div>
-
-					{#if isAnalyzing}
-						<div class="mt-5 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
-							<div
-								class="h-full rounded-full bg-brand transition-[width] duration-150"
-								style="width: {progressPct}%"
-							></div>
-						</div>
-					{:else if sparkPoints}
-						<div class="relative mt-5">
-							<svg
-								class="block h-14 w-full"
-								viewBox="0 0 100 30"
-								preserveAspectRatio="none"
-								aria-hidden="true"
-							>
-								<line
-									x1="0"
-									y1="15"
-									x2="100"
-									y2="15"
-									stroke="var(--border)"
-									stroke-width="0.5"
-									stroke-dasharray="2 2"
-									vector-effect="non-scaling-stroke"
-								/>
-								<polyline
-									{@attach drawLine(currentKey ?? '', view.animateGraph)}
-									points={sparkPoints}
-									fill="none"
-									stroke="var(--brand)"
-									stroke-width="1.5"
-									stroke-linejoin="round"
-									stroke-linecap="round"
-									vector-effect="non-scaling-stroke"
-								/>
-							</svg>
-							{#if peakMarker}
-								<span
-									class="absolute h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand ring-2 ring-surface-1"
-									style="left: {peakMarker.x}%; top: {peakMarker.y}%;"
-								></span>
-								<span
-									class="absolute text-[11px] font-medium whitespace-nowrap text-text-2"
-									style="left: {peakMarker.x}%; top: calc({peakMarker.y}% - 0.45rem); transform: translate({peakMarker.tx}, -100%);"
-								>
-									Peak <span class="font-semibold text-text tabular-nums"
-										>{peakMarker.value.toFixed(0)}%</span
-									>
-								</span>
-							{/if}
-						</div>
-					{/if}
-
-					<div class="mt-4 flex items-center gap-5 text-sm">
-						{#if isAnalyzing}
-							<span class="text-text-muted"
-								>Analyzing your game… {view.progress.done}/{view.progress.total}</span
-							>
-						{:else if view.analyzed}
-							{#if view.accuracy != null}
-								<span class="text-text-2" transition:fade={{ duration: 400 }}
-									>Accuracy <span class="font-semibold text-text tabular-nums"
-										>{view.accuracy.toFixed(0)}%</span
-									></span
-								>
-							{/if}
-						{:else}
-							<span class="text-text-muted">Not analyzed yet — open it to run the engine.</span>
-						{/if}
-						<span class="ml-auto font-medium text-brand">See the full game →</span>
-					</div>
-				</a>
-			</section>
+				{/snippet}
+			</RecapCard>
 		{:else}
 			<!-- Account linked, but nothing stored yet. -->
 			<section
@@ -611,11 +443,9 @@
 				style="box-shadow: var(--shadow-1);"
 			>
 				<h2 class="text-lg font-semibold text-text">No games yet</h2>
-				<p class="mt-1 mb-4 text-base text-text-2">
-					Pull your history from chess.com and your home fills up.
-				</p>
+				<p class="mt-1 mb-4 text-base text-text-2">Pull your history and your home fills up.</p>
 				<a
-					href="/review"
+					href="/account"
 					class="inline-block rounded-lg bg-brand px-4 py-2 font-medium text-white hover:bg-brand-hover"
 					>Sync your games</a
 				>
@@ -688,7 +518,7 @@
 			{:else}
 				<span></span>
 			{/if}
-			<a href="/review" class="hover:text-text-2">Manage accounts</a>
+			<a href="/account" class="hover:text-text-2">Manage accounts</a>
 		</footer>
 	</main>
 </div>

@@ -8,6 +8,11 @@ import type { Side } from '$lib/chess/types';
 /** Where a game came from. chess.com and lichess have adapters; upload follows. */
 export type ReviewSource = 'chesscom' | 'lichess' | 'upload';
 
+/** Sources a user can actually link / import from, in display order. Lives here
+ *  (not in `sources/`) so browser code can list platforms without importing the
+ *  adapters — which pull in server-only env. */
+export const IMPORTABLE_SOURCES: ReviewSource[] = ['chesscom', 'lichess'];
+
 /** A linked profile: a username on one platform. The unit a user owns, swaps
  *  between, and scopes the whole app to. Source-qualified because the same
  *  username on chess.com and lichess are different people, and ratings don't

@@ -68,13 +68,19 @@
 					Home
 				</a>
 				<a
+					href="/review"
+					class="block rounded-md px-3 py-1.5 text-sm font-medium text-text-2 transition-colors hover:bg-surface-3 hover:text-text"
+				>
+					Your games
+				</a>
+				<a
 					href="/review/stats"
 					class="block rounded-md px-3 py-1.5 text-sm font-medium text-text-2 transition-colors hover:bg-surface-3 hover:text-text"
 				>
 					Stats
 				</a>
 				<a
-					href="/review"
+					href="/account"
 					class="block rounded-md px-3 py-1.5 text-sm font-medium text-text-2 transition-colors hover:bg-surface-3 hover:text-text"
 				>
 					Account

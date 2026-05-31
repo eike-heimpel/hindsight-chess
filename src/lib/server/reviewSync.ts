@@ -22,7 +22,7 @@ const SYNC_THROTTLE_MS = 60_000;
 type SyncMetaDoc = { _id: string; lastSyncedAt: Date };
 const syncMeta = collectionAccessor<SyncMetaDoc>('reviewSyncMeta');
 
-async function lastSyncedAt(key: string): Promise<Date | null> {
+export async function lastSyncedAt(key: string): Promise<Date | null> {
 	const c = await syncMeta();
 	const doc = await c.findOne({ _id: key });
 	return doc?.lastSyncedAt ?? null;
