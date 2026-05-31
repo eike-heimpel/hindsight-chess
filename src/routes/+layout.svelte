@@ -72,7 +72,7 @@
 				transition:fade={{ duration: 100 }}
 				class="flex items-center gap-1.5 rounded-md bg-surface-1/70 px-2.5 py-1.5 font-display text-base font-medium tracking-tight text-text-2 backdrop-blur-sm transition-colors hover:text-text active:bg-surface-2"
 			>
-				Hindsight
+				<span>Hindsight<span class="text-brand">.</span></span>
 				<svg viewBox="0 0 16 16" fill="none" class="size-3 text-text-muted" aria-hidden="true">
 					<path
 						d="M4 6l4 4 4-4"
