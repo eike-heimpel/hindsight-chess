@@ -41,15 +41,17 @@
 	/>
 </svelte:head>
 
-<main class="mx-auto flex min-h-screen max-w-md flex-col px-6 pt-16 pb-12">
-	<header in:fade={{ duration: 500 }}>
-		<span class="inline-flex items-center gap-2 text-sm font-semibold tracking-wide text-text-2">
-			<span class="h-2.5 w-2.5 rounded-[3px] bg-brand"></span>
-			Hindsight
+<main class="mx-auto flex min-h-screen max-w-md flex-col px-6 pt-8 pb-12">
+	<header in:fade={{ duration: 500 }} class="flex items-center justify-between">
+		<span class="text-sm font-semibold tracking-wide text-text-2">
+			Hindsight<span class="text-brand">.</span>
 		</span>
+		<a href="/login" class="text-sm font-medium text-text-2 transition-colors hover:text-text">
+			Sign in
+		</a>
 	</header>
 
-	<div class="mt-12">
+	<div class="mt-10">
 		<h1
 			in:fly={{ y: 8, duration: 600, easing: cubicOut }}
 			class="text-3xl font-semibold tracking-tight text-balance text-text sm:text-4xl"
