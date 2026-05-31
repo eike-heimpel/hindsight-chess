@@ -66,7 +66,7 @@
 		</p>
 	</div>
 
-	<div class="mt-9" in:fade={{ duration: 700, delay: 260 }}>
+	<div class="mt-8" in:fade={{ duration: 700, delay: 260 }}>
 		<ConnectProfile mode="teaser" {example} onRevealed={(sel) => (connectSel = sel)} />
 	</div>
 
@@ -83,9 +83,5 @@
 				come back.
 			</p>
 		</div>
-	{:else}
-		<p class="mt-4 text-sm text-text-muted" in:fade={{ duration: 600, delay: 360 }}>
-			Pick chess.com or Lichess — type your username to see your last game. No sign-up to look.
-		</p>
 	{/if}
 </main>

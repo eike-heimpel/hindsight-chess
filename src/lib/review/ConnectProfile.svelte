@@ -174,13 +174,10 @@
 		</div>
 	{/if}
 {:else}
-	{#if example}
-		<p class="mb-2 text-sm text-text-muted">An example — one of mine. Type your username for yours.</p>
-		<div class="mb-4 opacity-90">
-			<RecapCard recap={example} />
-		</div>
-	{/if}
-
+	<!-- Action first. On a phone the example card is the tallest thing on the
+	     page; leading with it pushed the username field below the fold, so you
+	     were told to type with nowhere visible to do it. The input goes up top;
+	     the example sits below as proof that rewards the scroll. -->
 	<form onsubmit={run} class="flex flex-col gap-3">
 		<div class="inline-flex w-fit rounded-lg border border-border bg-surface-1 p-1">
 			{#each IMPORTABLE_SOURCES as s (s)}
@@ -218,4 +215,15 @@
 			<p class="text-sm text-bad">{st.error}</p>
 		{/if}
 	</form>
+
+	{#if mode === 'teaser'}
+		<p class="mt-3 text-sm text-text-muted">No sign-up to look.</p>
+	{/if}
+
+	{#if example}
+		<p class="mt-8 mb-3 text-sm text-text-muted">An example — one of mine.</p>
+		<div class="opacity-90">
+			<RecapCard recap={example} />
+		</div>
+	{/if}
 {/if}
