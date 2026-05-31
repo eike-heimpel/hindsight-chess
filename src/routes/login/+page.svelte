@@ -15,7 +15,7 @@
 		status = 'sending';
 		const { error } = await authClient.signIn.magicLink({
 			email: email.trim(),
-			callbackURL: '/review'
+			callbackURL: '/home'
 		});
 		if (error) {
 			status = 'error';

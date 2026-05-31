@@ -1,4 +1,7 @@
 <script lang="ts">
+	/* eslint-disable svelte/no-navigation-without-resolve --
+	 * Static internal nav links; resolve() adds noise without value here (same
+	 * posture as the other route files). */
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import { page } from '$app/state';
@@ -10,8 +13,9 @@
 	// The one piece of always-on chrome: a quiet wordmark that gets you home from
 	// anywhere, doubling as the app's nav. Fixed/overlay so it costs zero layout
 	// height — pages keep their full viewport and nothing new scrolls. Suppressed
-	// on the sign-in screen.
-	const showChrome = $derived(page.url.pathname !== '/login');
+	// on the sign-in screen and the public landing (which carries its own
+	// wordmark; a logged-out stranger has no app nav to show).
+	const showChrome = $derived(page.url.pathname !== '/login' && page.url.pathname !== '/');
 
 	// Click the wordmark to open the nav; click it again and you've landed on
 	// Home — because Home occupies the exact spot the trigger did, a double-click
@@ -58,7 +62,7 @@
 				class="min-w-44 overflow-hidden rounded-lg border border-border bg-surface-2 p-1 shadow-xl shadow-black/40"
 			>
 				<a
-					href="/"
+					href="/home"
 					class="block rounded-md px-3 py-1.5 text-sm font-semibold text-text transition-colors hover:bg-surface-3"
 				>
 					Home

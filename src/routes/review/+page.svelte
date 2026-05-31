@@ -65,7 +65,7 @@
 		<h1 class="text-2xl font-bold text-text">Your games</h1>
 		<nav class="flex items-center gap-4 text-sm">
 			<a href="/review/stats" class="font-medium text-text-2 hover:text-text">Stats</a>
-			<a href="/" class="text-text-muted hover:text-text-2">← Home</a>
+			<a href="/home" class="text-text-muted hover:text-text-2">← Home</a>
 		</nav>
 	</header>
 
@@ -205,8 +205,8 @@
 
 	{#if data.account && data.games.length === 0}
 		<p class="text-text-muted">
-			No games found for “{data.account.username}” on {platformLabel(data.account.source)} yet. Play
-			a game there, then hit ↻ Sync — or try ⤓ All to back-fill older history.
+			No games found for “{data.account.username}” on {platformLabel(data.account.source)} yet. Play a
+			game there, then hit ↻ Sync — or try ⤓ All to back-fill older history.
 		</p>
 	{:else if data.account && data.games.length > 0}
 		<p class="mb-3 text-sm text-text-muted">
