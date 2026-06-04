@@ -1,35 +1,35 @@
 # Game Review
 
-Adult-facing (Papa profile) post-game review tool. This doubles as the module reference and the design rationale: the architecture/decisions sections explain _why_; concrete values (win-% model, classification thresholds, engine depth, accuracy aggregation) live in code and are referenced by symbol — code wins on any conflict (see the doc conventions in `CLAUDE.md`).
+Adult-facing post-game review tool. This doubles as the module reference and the design rationale: the architecture/decisions sections explain _why_; concrete values (win-% model, classification thresholds, engine depth, accuracy aggregation) live in code and are referenced by symbol — code wins on any conflict (see the doc conventions in `CLAUDE.md`).
 
-Built scope: ingestion (chess.com) + replay, the analysis spine (per-move win% + classification + accuracy, calibrated against chess.com's own numbers), and the on-demand grounded explainer. Open items are in **Deferred / open** below. Not yet exercised end-to-end against a live Mongo + logged-in parent, and the explainer prompt is untested against the live model.
+Built scope: ingestion (chess.com + lichess) + replay, the analysis spine (per-move win% + classification + accuracy, calibrated against chess.com's own numbers), and the on-demand grounded explainer. Open items are in **Deferred / open** below. Not yet exercised end-to-end against a live Mongo + logged-in user, and the explainer prompt is untested against the live model.
 
 ### Files
 
-| Piece                      | Files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | State            |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| Domain types               | `src/lib/review/types.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | done             |
-| Ingestion seam             | `src/lib/review/source.ts`, `src/lib/review/sources/chesscom.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | done (chess.com) |
-| Normalizer                 | `src/lib/review/normalize.ts` (+ `normalize.test.ts`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | done, tested     |
-| Games store                | `src/lib/server/reviewGames.ts` (`upsertGames`, `listRecentGames`, `listStoredGameIds`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | done             |
-| List route + account links | `src/routes/review/+page.{server.ts,svelte}` (`?/sync` incremental, `?/syncAll` full back-fill, `?/addAccount`, `?/removeAccount`; defaults to the profile's linked account)                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | done             |
-| Replay route               | `src/routes/review/[source]/[gameId]/+page.{server.ts,svelte}`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | replay done      |
-| Home entry link            | `src/routes/+page.svelte`, `T.homeOpenReview` in `src/lib/i18n/de.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | done             |
-| Win% / classify / accuracy | `src/lib/review/winPercent.ts`, `classify.ts`, `accuracy.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | done, tested     |
-| Analysis core (pure)       | `src/lib/review/analysis.ts` (`buildAnalysis`, types) (+ `analysis.test.ts`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | done, tested     |
-| Browser engine pass        | `src/lib/client/reviewAnalysis.ts` (`analyzeGame`, `REVIEW_DEPTH=16`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | done             |
-| Analysis cache + API       | `src/lib/server/reviewAnalysis.ts`, `src/routes/api/review/analyze/+server.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | done             |
-| Analysis in replay UI      | `src/routes/review/[source]/[gameId]/+page.svelte`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | done             |
-| Engine PV + multiPV        | `src/lib/engine/engine.ts` (`EngineLine`, `pv`/`lines`, `multiPv`), `uci-parse.ts` (`parsePv`/`parseMultipv`/`buildPvAndLines` + `uci-parse.test.ts`), `stockfish-browser.ts`, `stockfish-node.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                  | done, tested     |
-| Explainer core (pure)      | `src/lib/review/explain.ts` (`buildExplainFacts`, `ReviewExplainRequest`/`Facts`), `explainPrompt.ts`, `explainer.ts`, `openrouterExplainer.ts`, `stubExplainer.ts` (+ `explain.test.ts`)                                                                                                                                                                                                                                                                                                                                                                                                                                                           | done, tested     |
-| Explain cache + factory    | `src/lib/server/reviewExplanations.ts`, `src/lib/server/review-explainer-factory.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | done             |
-| Explain route              | `src/routes/api/review/explain/+server.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | done             |
-| Explain client + UI        | `src/lib/client/reviewExplain.ts` (`explainMove`), replay page "Explain this move"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | done             |
-| Calibration harness        | `scripts/calibrate-review.ts` (`npm run calibrate:review`), `gameAccuracy()` in `accuracy.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | done             |
-| Cross-game stats core      | `src/lib/review/stats/` — `types.ts` (`ReviewStats`, `PerspectiveGame`, `WinnableCandidate`, `TIME_CLASSES`), `perspective.ts` (`toPerspective()`), `compute.ts` (`computeReviewStats()`), `trend.ts` (`windowTrend()`/`recentMean()`), `winnable.ts` (`buildCandidate()`/`classifyWinnable()`), `blunders.ts` (`collectBlunders()`), `robustness.ts` (`longestRunAtOrAbove()`/`sustainedLoss()` — shared "did I hold this, or was it a spike?" math); `src/lib/review/material.ts` (`materialBalance()`/`materialLead()`) (+ `compute.test.ts`, `trend.test.ts`, `winnable.test.ts`, `blunders.test.ts`, `robustness.test.ts`, `material.test.ts`) | done, tested     |
-| Stats charts               | `src/lib/review/charts/` — `scale.ts`, `palette.ts` (colour tokens), `LineChart.svelte`, `BarChart.svelte`, `SegmentedBar.svelte` (hand-built, no library)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | done             |
-| Stats server + batch       | `listGamesForAccounts()`/`getAnalysesByIds()` stores, `src/lib/client/reviewStats.ts` (`batchAnalyze()`), `GET /api/review/game/[source]/[gameId]`, `/review/stats/+page.{server,svelte}`                                                                                                                                                                                                                                                                                                                                                                                                                                                           | done             |
-| Blunder trainer            | `src/lib/review/stats/blunders.ts` (`collectBlunders()`) (+ `blunders.test.ts`), `src/routes/review/blunders/+page.{server,svelte}` (board-centric drill; reuses `Board`, `uciSquares()`, `explainMove()`, cached-explanation seeding)                                                                                                                                                                                                                                                                                                                                                                                                              | done, tested     |
+| Piece                      | Files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | State        |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| Domain types               | `src/lib/review/types.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | done         |
+| Ingestion seam             | `src/lib/review/source.ts`, `src/lib/review/sources/{chesscom,lichess}.ts`, `sources/index.ts` (registry)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | done         |
+| Normalizer                 | `src/lib/review/normalize.ts` (+ `normalize.test.ts`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | done, tested |
+| Games store                | `src/lib/server/reviewGames.ts` (`upsertGames`, `listRecentGames`, `listStoredGameIds`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | done         |
+| List route + account links | `src/routes/review/+page.{server.ts,svelte}` lists stored games for the active account; linking + sync (`?/addAccount`, `?/removeAccount`, `?/selectAccount`, `?/sync`, `?/syncAll`) live on `src/routes/account/+page.server.ts`                                                                                                                                                                                                                                                                                                                                                                                                                   | done         |
+| Replay route               | `src/routes/review/[source]/[gameId]/+page.{server.ts,svelte}`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | replay done  |
+| Home entry                 | `src/routes/+page.svelte` (post-game dashboard; surfaces review recaps + the connect flow via `RecapCard.svelte` / `ConnectProfile.svelte`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | done         |
+| Win% / classify / accuracy | `src/lib/review/winPercent.ts`, `classify.ts`, `accuracy.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | done, tested |
+| Analysis core (pure)       | `src/lib/review/analysis.ts` (`buildAnalysis`, types) (+ `analysis.test.ts`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | done, tested |
+| Browser engine pass        | `src/lib/client/reviewAnalysis.ts` (`analyzeGame`, `REVIEW_DEPTH`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | done         |
+| Analysis cache + API       | `src/lib/server/reviewAnalysis.ts`, `src/routes/api/review/analyze/+server.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | done         |
+| Analysis in replay UI      | `src/routes/review/[source]/[gameId]/+page.svelte`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | done         |
+| Engine PV + multiPV        | `src/lib/engine/engine.ts` (`EngineLine`, `pv`/`lines`, `multiPv`), `uci-parse.ts` (`parsePv`/`parseMultipv`/`buildPvAndLines` + `uci-parse.test.ts`), `stockfish-browser.ts`, `stockfish-node.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                  | done, tested |
+| Explainer core (pure)      | `src/lib/review/explain.ts` (`buildExplainFacts`, `ReviewExplainRequest`/`Facts`), `explainPrompt.ts`, `explainer.ts`, `openrouterExplainer.ts`, `stubExplainer.ts` (+ `explain.test.ts`)                                                                                                                                                                                                                                                                                                                                                                                                                                                           | done, tested |
+| Explain cache + factory    | `src/lib/server/reviewExplanations.ts`, `src/lib/server/review-explainer-factory.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | done         |
+| Explain route              | `src/routes/api/review/explain/+server.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | done         |
+| Explain client + UI        | `src/lib/client/reviewExplain.ts` (`explainMove`), replay page "Explain this move"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | done         |
+| Calibration harness        | `scripts/calibrate-review.ts` (`npm run calibrate:review`), `gameAccuracy()` in `accuracy.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | done         |
+| Cross-game stats core      | `src/lib/review/stats/` — `types.ts` (`ReviewStats`, `PerspectiveGame`, `WinnableCandidate`, `TIME_CLASSES`), `perspective.ts` (`toPerspective()`), `compute.ts` (`computeReviewStats()`), `trend.ts` (`windowTrend()`/`recentMean()`), `winnable.ts` (`buildCandidate()`/`classifyWinnable()`), `blunders.ts` (`collectBlunders()`), `robustness.ts` (`longestRunAtOrAbove()`/`sustainedLoss()` — shared "did I hold this, or was it a spike?" math); `src/lib/review/material.ts` (`materialBalance()`/`materialLead()`) (+ `compute.test.ts`, `trend.test.ts`, `winnable.test.ts`, `blunders.test.ts`, `robustness.test.ts`, `material.test.ts`) | done, tested |
+| Stats charts               | `src/lib/review/charts/` — `scale.ts`, `palette.ts` (colour tokens), `LineChart.svelte`, `BarChart.svelte`, `SegmentedBar.svelte` (hand-built, no library)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | done         |
+| Stats server + batch       | `listGamesForAccounts()`/`getAnalysesByIds()` stores, `src/lib/client/reviewStats.ts` (`batchAnalyze()`), `GET /api/review/game/[source]/[gameId]`, `/review/stats/+page.{server,svelte}`                                                                                                                                                                                                                                                                                                                                                                                                                                                           | done         |
+| Blunder trainer            | `src/lib/review/stats/blunders.ts` (`collectBlunders()`) (+ `blunders.test.ts`), `src/routes/review/blunders/+page.{server,svelte}` (board-centric drill; reuses `Board`, `uciSquares()`, `explainMove()`, cached-explanation seeding)                                                                                                                                                                                                                                                                                                                                                                                                              | done, tested |
 
 ### Replay UI — as built (task #9, done)
 
@@ -51,7 +51,7 @@ Built scope: ingestion (chess.com) + replay, the analysis spine (per-move win% +
 ### Grounded explainer — as built (slice 3)
 
 On-demand "Explain this move" on the replay page, per move. Adult-facing English
-prose (no kid-voice rules), hard-grounded in engine lines + chess.js facts.
+prose, hard-grounded in engine lines + chess.js facts.
 
 - **Engine plumbing.** `EngineEval` gained optional `pv` and `lines: EngineLine[]`;
   `EvaluateOptions` gained `multiPv`. Both Stockfish impls capture the last
@@ -83,19 +83,17 @@ prose (no kid-voice rules), hard-grounded in engine lines + chess.js facts.
 
 ### Cross-game stats — as built
 
-`/review/stats` — a parent-only dashboard aggregating a person's games across the
-profile's linked accounts. The "second-screen payoff": queries over the two
-collections, no new persistence.
+`/review/stats` — a dashboard aggregating the active account's games. The
+"second-screen payoff": queries over the two collections, no new persistence.
 
 **Two axes that shape everything:**
 
-- **Person = a set of accounts.** The aggregation unit is the active `Profile`,
-  which already owns `reviewAccounts` (lowercased usernames). Stats fold over
-  `listGamesForAccounts()` (`reviewGames.ts`). Decision: keyed to `Profile`, not
-  a new "reviewer identity" — it already holds the accounts and the review tool
-  stays separable (nothing in the kid app imports the stats layer). _Extension
-  path_ when a second platform lands: accounts become `(source, username)` pairs
-  and `source` becomes a second axis, shown side-by-side, **never pooled** (a
+- **Identity = the active account.** Stats scope to `user.activeAccount` (the
+  `User` seam in `auth.ts`); a user owns a set of `{source, username}` accounts in
+  `reviewAccounts.ts`, keyed on Better Auth's `userId`, and switches the active one
+  on `/account`. Stats fold over `listGamesForAccounts([active])`
+  (`reviewGames.ts`). Accounts are already `(source, username)` pairs, so a second
+  platform becomes a `source` axis shown side-by-side, **never pooled** (a
   different engine/calibration per platform).
 - **Segmented by time class, never pooled.** `computeReviewStats()` returns one
   `ReviewStats` per time class (bullet/blitz/rapid/daily), ordered most-played
@@ -231,15 +229,13 @@ the realistic floor.
   it). `timeClass` is **derived** from the time control (base + 40·inc), not
   taken from the source — uniform across platforms.
 - Analysis runs in the **browser** (Vercel can't do 40+ evals < 10s) and is
-  POSTed to the server, which trusts and stores it. Fine for a single-user
-  parent tool; revisit if it ever goes multi-user.
+  POSTed to the server, which trusts and stores it — the multi-user trust hole
+  tracked in `CLAUDE.md` "Going public".
 - Engine depth fixed at `REVIEW_DEPTH` (`src/lib/client/reviewAnalysis.ts`) so cached analyses are reproducible.
 - `CLASS_THRESHOLDS` (`classify.ts`) are uncalibrated starting values — see the calibration note above on why chess.com's API can't fit them.
-- All `/review` routes are parent-only + `useMongo()`-gated (503 without Mongo),
-  mirroring `/train/auswahl`. The feature has **no no-DB fallback** — it needs
-  Mongo.
-- English UI throughout `/review`; the only German is the home-page link label
-  `T.homeOpenReview` ('Partie-Analyse').
+- All `/review` routes require an authenticated user + are `useMongo()`-gated
+  (503 without Mongo). The feature has **no no-DB fallback** — it needs Mongo.
+- English UI throughout.
 
 ### Pre-existing repo issue (flagged, not from this work)
 
@@ -256,39 +252,31 @@ based), and — **on demand** — ask an LLM to explain a move in plain English,
 grounded in what the engine actually sees. Built to grow into a "second-screen"
 companion with personal history + stats.
 
-This is **for the developer (Papa profile), not the kid.** None of the kid
-pedagogy rules (no scores, intrinsic-only) apply here — accuracy %, move
-classifications and stats are all wanted.
+This is an **adult-facing** tool — accuracy %, move classifications and stats
+are all wanted, surfaced honestly rather than gamified.
 
 ### Non-goals (for now)
 
-- Not in the kid's learning section. Separate room.
-- No stats/history screens yet — but we **persist the data** so they're later
-  just queries.
 - No `Brilliant / Great / Miss / Book` classes yet (need sacrifice / only-move /
   theory detection). Five buckets only.
 - No live-game / board-editor analysis. Review of _finished_ games only.
 
-## Product stance: separable, not separated
+## Product stance: self-contained
 
-We want to be able to rip this out into a standalone product later **without
-paying for that option now**. The cheap way to buy it:
+This repo _is_ the standalone product. The structure that keeps the review
+feature a cohesive, movable module — still worth holding:
 
 - All code under `src/lib/review/` and routes under `/review`.
-- **One-way dependency:** `review` may import shared primitives (`Engine`,
-  `src/lib/chess/rules.ts`, `Result`); **nothing in the kid app imports from
-  `review`.**
-- Own Mongo collections (`reviewGames`, `reviewAnalysis`), own English strings
-  file. No entry in `src/lib/i18n/de.ts`.
+- **One-way dependency:** `review` imports shared primitives (`Engine`,
+  `src/lib/chess/rules.ts`, `Result`), not the reverse.
+- Own Mongo collections (`reviewGames`, `reviewAnalysis`).
 
-Extraction later = move a folder + its routes + collections into a fresh
-SvelteKit app. We do **not** build packages, plugin systems, or a second deploy
-now. (That would be the overengineering we're avoiding.)
+We do **not** build packages, plugin systems, or a second deploy. (That would be
+the overengineering we're avoiding.)
 
 ## Language
 
-English UI. (The kid app's German-only hard rule is scoped to _her_ product.)
-If we later want a kid-friendly translation, that's an additive concern.
+English UI throughout.
 
 ---
 
@@ -321,12 +309,13 @@ username / PGN
 A small seam so the rest of the app is platform-blind. The `GameSource` interface
 and `RawGame` shape (`src/lib/review/source.ts`) carry only raw PGN + minimal
 metadata; `ReviewSource` (`types.ts`) is the platform tag. Everything downstream
-speaks `ReviewGame`. `ChessComSource` (`sources/chesscom.ts`) is the one built
-adapter; `listGames(account, opts)` walks chess.com newest-first.
+speaks `ReviewGame`. `ChessComSource` (`sources/chesscom.ts`) and `LichessSource`
+(`sources/lichess.ts`) are the built adapters, registered in `sources/index.ts`;
+`listGames(account, opts)` walks the platform newest-first.
 
-Build order: **chesscom adapter now**, `upload` (paste PGN — trivial once the
-normalizer exists), `lichess` later (bonus: it can hand us precomputed evals so
-we skip the engine pass for those games).
+Still open: `upload` (paste PGN — trivial once the normalizer exists), and
+lichess handing us precomputed evals so we skip the engine pass for those games
+(the adapter exists; the eval shortcut doesn't yet).
 
 **chess.com adapter facts (validated against `Timbolt123`):**
 
@@ -361,21 +350,20 @@ the ECO url slug, `playedAt` from `end_time`.
 Storing the data is the entire "ready for stats" investment — future
 history/stats screens are queries over these two collections.
 
-**Account linking + incremental sync.** A profile owns chess.com accounts via
-`Profile.reviewAccounts` (`src/lib/server/profiles.ts` — plain `string[]`, so
-the kid-app profiles module never imports from `review/`; Papa seeds with
-`timbolt123`). `/review` defaults to the active profile's first linked account
-and lists its **stored** games — opening the page does no network call. Sync is
-manual (the ↻ on an account chip): `?/sync` passes the account's
-`listStoredGameIds()` into `ChessComSource.listGames({ knownGameIds })`, which
-walks chess.com newest-first and **stops at the first already-stored game**, so
-a repeat sync pulls only the handful of new games (capped at `SYNC_LIMIT` for a
-first sync). Because it walks newest-first and stops at a known game, incremental
-sync **only reaches games newer than the newest stored one** — it never
-back-fills older history. The ⤓ All button (`?/syncAll`) covers that case: it
-omits `knownGameIds` and uses `BACKFILL_LIMIT`, walking the full archive and
-re-upserting everything (idempotent). `?/addAccount` / `?/removeAccount` edit the
-link on the profile.
+**Account linking + incremental sync.** A user owns platform accounts
+(`{source, username}`) via `reviewAccounts.ts`, keyed on Better Auth's `userId`
+(the `User` seam in `auth.ts`). Linking + sync live on `/account`; `/review`
+scopes to the active account and lists its **stored** games — opening the page
+does no network call. Sync is manual: `?/sync` passes the account's
+`listStoredGameIds()` into the source's `listGames({ knownGameIds })`, which
+walks the platform newest-first and **stops at the first already-stored game**,
+so a repeat sync pulls only the handful of new games (capped at `SYNC_LIMIT` for
+a first sync). Because it walks newest-first and stops at a known game,
+incremental sync **only reaches games newer than the newest stored one** — it
+never back-fills older history. The ⤓ All button (`?/syncAll`) covers that case:
+it omits `knownGameIds` and uses `BACKFILL_LIMIT`, walking the full archive and
+re-upserting everything (idempotent). `?/addAccount` / `?/removeAccount` /
+`?/selectAccount` edit the user's linked accounts.
 
 ### 4. analyze() — engine pass
 
@@ -385,8 +373,7 @@ the eval of the position _after_ move `i` is the eval _before_ move `i+1`. So:
 - `cpBefore(i)` = eval of `fenBefore(i)`, side-to-move POV (= best play available)
 - `cpAfter(i)` = `-eval(fenBefore(i+1))` (next position, flipped to mover POV)
 
-Reuses the existing `Engine` interface and the per-position pattern in
-`evaluateKidMoves()` (`src/lib/client/openingReplay.ts`). Browser WASM at a
+Reuses the existing `Engine` interface, one eval per position. Browser WASM at a
 moderate fixed depth, sequential, with a progress indicator; cache the result in
 `reviewAnalysis` so a game is only analyzed once. (Whole-history batch analysis
 for stats is a later concern.)
@@ -425,10 +412,9 @@ action the user triggers on one move ("explain this move" / "why does the engine
 play this?"). This is the wedge feature: explain the _alien_ engine move using
 what Stockfish actually sees, in plain English.
 
-Mirrors the existing **spotlight** pattern (`pickSpotlight()`,
-`classifyAlternative()`, `extractFacts()`, hard-grounded prompt in
-`spotlightPrompt.ts`) — generalized from the opening recap to any position. The
-LLM is **hard-grounded** in engine + rules facts; it does not free-associate.
+The explainer (`explain.ts` / `explainPrompt.ts`) builds its grounding from
+engine lines + chess.js facts and feeds a hard-grounded prompt. The LLM is
+**hard-grounded** in engine + rules facts; it does not free-associate.
 
 Grounding payload:
 
@@ -449,9 +435,9 @@ ply }`.
 
 ### 7. UI
 
-- `/review` — Papa-only route (redirect child profiles, like `/train/auswahl`).
-  Username input + recent-games list (result, opening, ratings, date, our
-  accuracy once analyzed).
+- `/review` — authenticated route (redirects to `/login` without a session).
+  Recent-games list for the active account (result, opening, ratings, date, our
+  accuracy once analyzed); account linking lives on `/account`.
 - Game view — replay on `Board.svelte` (reused) with prev/next, move list with
   classification badges, eval/win-% bar, clocks. "Explain this move" button →
   calls the explainer, shows the grounded text + the engine line (and we can
@@ -479,7 +465,8 @@ as-built notes in the status section.
 
 - ~~Stats + history screens (the "second-screen" payoff)~~ — **done**, see
   _Cross-game stats — as built_ above.
-- lichess GameSource (+ its precomputed evals → skip engine pass).
+- lichess precomputed evals → skip the engine pass for those games (the lichess
+  GameSource itself is built).
 - PGN upload source.
 - `Brilliant / Great / Miss / Book` classes.
 - Whole-history batch analysis + caching strategy.
