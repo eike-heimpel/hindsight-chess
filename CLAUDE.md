@@ -83,6 +83,36 @@ npm run calibrate:review -- <chesscom-user> [sampleSize]
 ## Code bar
 
 - Fail fast — boundaries return `Result` (`src/lib/result.ts`), domain code
-  throws. No fallback logic that hides errors.
+  throws. No fallback logic that hides errors. A `try/catch` that swallows is a
+  smell: rely on the `Result` for _expected_ failures and let _unexpected_ ones
+  surface (see `api/review/sync`).
 - No abstractions/layers without a concrete need; no backwards-compat shims.
 - Comments explain _why_, not _what_.
+
+### Svelte 5
+
+- `$effect` is for side effects (DOM, network, storage) — **never** to copy
+  `data`/props into local `$state`. Reset-on-navigation belongs in `{#key}` (or
+  a fresh mount); a state change in response to another state change belongs in
+  the **event handler** that caused it, not an effect (`RecencyFilter.onChange`
+  is the pattern). An effect that reads a value only to re-derive another is a
+  `$derived`.
+- A one-shot, non-reactive browser action (localStorage read, clock) is
+  `onMount`, not a dependency-less `$effect`.
+- Events are callback props (`onClick`, `onChange`) — no `createEventDispatcher`.
+  Slots are `{#snippet}`/`{@render}`.
+- A route component over ~250 lines doing async orchestration extracts that into
+  a `.svelte.ts` rune module — `recapQueue.svelte.ts` (the home reveal queue,
+  with an injected `RecapEngine`) is the pattern to follow; the 624-line
+  `review/[source]/[gameId]/+page.svelte` is the next candidate.
+
+### Trust + mobile
+
+- API routes that write the **global** game-keyed caches (`reviewGames`,
+  `reviewAnalysis`, `reviewExplanations`) must re-derive from server-stored data,
+  not trust the POST body. The browser sends only engine numbers (evals/lines);
+  the server re-runs the pure builder against its own stored game. `analyze` and
+  `explain` are the references.
+- Mobile-first: base styles target small screens, `sm:`/`md:`/`lg:` scale up.
+  Use `min-h-dvh`, never `min-h-screen`/`100vh`. Interactive elements clear ~44px
+  at `@media (pointer: coarse)`. Honour `env(safe-area-inset-*)`.

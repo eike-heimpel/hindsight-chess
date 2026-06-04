@@ -4,19 +4,12 @@
 	 * as /review's game links. */
 	import { onMount } from 'svelte';
 	import { invalidate } from '$app/navigation';
-	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
-	import { fetchGame } from '$lib/client/reviewStats';
-	import {
-		drawLine as drawLineReveal,
-		initialState,
-		revealGame,
-		type GameState,
-		type Phase
-	} from '$lib/client/recapReveal';
+	import type { Phase } from '$lib/client/recapReveal';
+	import { createRecapQueue, keyOf, type RecapQueue } from '$lib/client/recapQueue.svelte';
+	import { createRealRecapEngine } from '$lib/client/recapEngine';
 	import RecapCard from '$lib/review/RecapCard.svelte';
 	import ConnectProfile from '$lib/review/ConnectProfile.svelte';
 	import { parseConnect } from '$lib/review/connectIntent';
-	import type { ReviewSource } from '$lib/review/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -84,35 +77,17 @@
 	}
 
 	// --- Live overlay -------------------------------------------------------
-	// Server props are immutable; all live analysis/headline results live here,
-	// keyed `source:gameId`, so a re-sync that reorders `recents` never loses
-	// them and we never mutate `data`. The phase machine + reveal live in
-	// `recapReveal` so the landing teaser runs the same code.
-	const states = new SvelteMap<string, GameState>();
-	const accountsSet = $derived(new Set((data.accounts ?? []).map((a) => a.toLowerCase())));
-	const recapByKey = $derived(new Map(data.recents.map((r) => [keyOf(r), r] as const)));
-
-	const EAGER_ANALYZE_CAP = 3;
-
-	function keyOf(r: { source: string; gameId: string }): string {
-		return `${r.source}:${r.gameId}`;
-	}
-
-	function patch(k: string, p: Partial<GameState>) {
-		const prev: GameState = states.get(k) ?? initialState();
-		// Always replace the value object so `states` (a SvelteMap) re-derives.
-		states.set(k, { ...prev, ...p });
-	}
-
-	function isUntouched(k: string): boolean {
-		const s = states.get(k);
-		return !s || s.phase === 'pending';
-	}
+	// Server props are immutable; the live analysis/headline reveal lives in the
+	// queue's `SvelteMap`, keyed `source:gameId`, so a re-sync that reorders
+	// `recents` never loses it and we never mutate `data`. The orchestration (work
+	// queue, single-flight pump, cancellation, eager cap) lives in `recapQueue`;
+	// this component is presentation + wiring.
+	let queue = $state.raw<RecapQueue | undefined>();
 
 	// The merged view of the visible game: immutable recap + any live state.
 	const view = $derived.by(() => {
 		if (!current) return null;
-		const s = states.get(currentKey!);
+		const s = queue?.get(currentKey!);
 		const phase: Phase = s?.phase ?? (current.analyzed ? 'done' : 'pending');
 		const analyzed =
 			current.analyzed ||
@@ -137,18 +112,18 @@
 		return `/review/${source}/${gameId}?me=${encodeURIComponent(data.account ?? '')}`;
 	}
 
-	// --- Orchestration ------------------------------------------------------
-	let cancelRequested = false;
-	let processing = false;
-	const queue: string[] = [];
-	// Games whose line-draw has already played — so flipping away and back
-	// doesn't replay it.
-	const hasAnimated = new SvelteSet<string>();
+	// --- Load-time bootstrap ------------------------------------------------
+	// Connect-on-first-load + auto-sync stay in the component: they call
+	// SvelteKit's `invalidate` (which can't be imported into a module) and touch
+	// `window`/`history`. Once data has settled we build the engine + queue and
+	// kick off the reveal. `destroyed` guards against finishing after unmount.
+	let destroyed = false;
 
 	onMount(() => {
-		run();
+		bootstrap();
 		return () => {
-			cancelRequested = true;
+			destroyed = true;
+			queue?.cancel();
 		};
 	});
 
@@ -178,11 +153,11 @@
 		}
 	}
 
-	async function run() {
+	async function bootstrap() {
 		await consumeConnect();
-		if (cancelRequested) return;
-		// 1. Auto-sync new games, then re-run the loader if any landed.
-		//    (Skipped in mock mode — there's no real account to sync.)
+		if (destroyed) return;
+		// Auto-sync new games, then re-run the loader if any landed. (Skipped in
+		// mock mode — there's no real account to sync.)
 		if (!data.mock) {
 			try {
 				const res = await fetch('/api/review/sync', { method: 'POST' });
@@ -194,159 +169,32 @@
 				// Offline / 5xx — proceed with what's already stored.
 			}
 		}
-		if (cancelRequested) return;
-		// 2. Queue the newest unanalyzed games (cap), then drain.
-		enqueueEager();
-		pump();
+		if (destroyed) return;
+
+		// Mock mode is dev-only — load it as a lazy chunk so it never ships to
+		// real users. Build accounts after connect, so a just-linked profile counts.
+		const engine = data.mock
+			? (await import('$lib/client/recapEngine.mock')).createMockRecapEngine({
+					llmHeadlines: data.llmHeadlines
+				})
+			: createRealRecapEngine({
+					accounts: new Set((data.accounts ?? []).map((a) => a.toLowerCase())),
+					llmHeadlines: data.llmHeadlines
+				});
+		if (destroyed) return;
+
+		queue = createRecapQueue({ engine });
+		queue.start(data.recents);
 	}
 
-	function enqueueEager() {
-		let count = 0;
-		for (const r of data.recents) {
-			if (count >= EAGER_ANALYZE_CAP) break;
-			const k = keyOf(r);
-			if (r.analyzed || !isUntouched(k) || queue.includes(k)) continue;
-			queue.push(k);
-			count++;
-		}
-	}
-
-	async function pump() {
-		if (processing) return;
-		processing = true;
-		try {
-			while (queue.length && !cancelRequested) {
-				await processOne(queue.shift()!);
-			}
-		} finally {
-			processing = false;
-		}
-	}
-
-	// --- Mock mode (/?mock=1) -----------------------------------------------
-	// The reveal each unanalyzed mock game animates into: a win-% timeline plus
-	// the "story" headline that swaps in after the (fake) engine + LLM run.
-	const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-	const MOCK_REVEAL: Record<
-		string,
-		{ spark: number[]; accuracy: number; peakWin: number; headline: string }
-	> = {
-		'chesscom:mock-1': {
-			spark: [
-				50, 53, 51, 55, 58, 56, 60, 57, 54, 50, 46, 48, 43, 40, 42, 38, 35, 33, 36, 30, 27, 24, 22,
-				20
-			],
-			accuracy: 71,
-			peakWin: 60,
-			headline:
-				'Even after the engine ran, the verdict holds — a strong middlegame undone by a couple of late slips.'
-		},
-		'chesscom:mock-3': {
-			spark: [50, 48, 52, 49, 53, 51, 47, 50, 54, 52, 48, 51, 49, 53, 50, 47, 52, 50, 49, 51, 50],
-			accuracy: 80,
-			peakWin: 54,
-			headline: 'The engine agrees it was balanced throughout — a hard-earned, well-deserved draw.'
-		}
-	};
-
-	async function simulateOne(k: string) {
-		const reveal = MOCK_REVEAL[k];
-		if (!reveal) return;
-		patch(k, { phase: 'fetching', done: 0, total: 0 });
-		await sleep(600);
-		if (cancelRequested) return;
-		const total = reveal.spark.length;
-		patch(k, { phase: 'analyzing', total });
-		for (let done = 1; done <= total; done++) {
-			await sleep(55);
-			if (cancelRequested) return;
-			patch(k, { done });
-		}
-		patch(k, {
-			phase: 'analyzed',
-			animateGraph: true,
-			spark: reveal.spark,
-			accuracy: reveal.accuracy,
-			peakWin: reveal.peakWin
-		});
-		await sleep(2800); // let the line finish drawing before the headline swaps
-		if (cancelRequested) return;
-		if (data.llmHeadlines) {
-			patch(k, { phase: 'headlineLoading' });
-			await sleep(1300);
-			if (cancelRequested) return;
-			patch(k, { headline: reveal.headline });
-		}
-		patch(k, { phase: 'done' });
-	}
-
-	async function processOne(k: string) {
-		if (!isUntouched(k)) return; // dedupe — already running / done / errored
-		const recap = recapByKey.get(k);
-		if (!recap) return;
-
-		if (data.mock) {
-			await simulateOne(k);
-			return;
-		}
-
-		patch(k, { phase: 'fetching', done: 0, total: 0 });
-		try {
-			const game = await fetchGame({ source: recap.source as ReviewSource, gameId: recap.gameId });
-			if (cancelRequested) return;
-
-			const revealed = await revealGame(game, {
-				accounts: accountsSet,
-				onPatch: (p) => patch(k, p),
-				cancelled: () => cancelRequested
-			});
-			if (!revealed.ok || cancelRequested) return;
-
-			// Persist the analysis before the headline endpoint reads it.
-			await fetch('/api/review/analyze', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify(revealed.analysis)
-			});
-			if (cancelRequested) return;
-
-			if (data.llmHeadlines) {
-				patch(k, { phase: 'headlineLoading' });
-				try {
-					const res = await fetch('/api/review/headline', {
-						method: 'POST',
-						headers: { 'content-type': 'application/json' },
-						body: JSON.stringify({ source: recap.source, gameId: recap.gameId })
-					});
-					if (res.ok) {
-						const { text } = (await res.json()) as { text: string };
-						if (text) patch(k, { headline: text });
-					}
-				} catch {
-					// Headline is non-critical — keep the template line.
-				}
-			}
-			patch(k, { phase: 'done' });
-		} catch (e) {
-			patch(k, { phase: 'error', error: e instanceof Error ? e.message : String(e) });
-		}
-	}
-
-	// On-flip lazy analysis: flipping to an untouched, unanalyzed game jumps it to
-	// the front of the queue. The engine is sequential (no preempt) — the in-flight
-	// game finishes, then this one runs.
+	// Flipping to an untouched, unanalyzed game jumps it to the front of the
+	// queue. A real side effect (launches async work in response to a state
+	// change), so it belongs in an effect — not a `data`→`$state` copy.
 	$effect(() => {
-		const k = currentKey;
-		if (!k) return;
-		const recap = recapByKey.get(k);
-		if (!recap || recap.analyzed || !isUntouched(k) || queue.includes(k)) return;
-		queue.unshift(k);
-		pump();
+		queue?.flipTo(currentKey);
 	});
 
-	// Line-draw the sparkline once per game (deduped via `hasAnimated`), on the
-	// pending→analyzed reveal only.
-	const drawLine = (key: string, animate: boolean) => drawLineReveal(key, animate, hasAnimated);
+	const drawLine = (key: string, animate: boolean) => queue?.drawLine(key, animate);
 
 	const form = $derived(data.summary.recentForm);
 	const hasForm = $derived(form.win + form.draw + form.loss > 0);
@@ -535,7 +383,7 @@
 	   room with a light on, not a console. Stays on the surface layer; no global
 	   token changes. */
 	.glow {
-		min-height: 100vh;
+		min-height: 100dvh;
 		background:
 			radial-gradient(
 				120% 70% at 50% -10%,

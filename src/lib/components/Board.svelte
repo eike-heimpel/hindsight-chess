@@ -25,6 +25,10 @@
 		opponentArrow?: { from: Square; to: Square } | null;
 		onSquareClick: (sq: Square) => void;
 		orientation?: 'white' | 'black';
+		/** When false (review/replay), squares render as decorative cells — no
+		 *  focusable no-op buttons, no per-square labels (the move list is the
+		 *  screen-reader representation). Defaults true for the play surface. */
+		interactive?: boolean;
 	};
 
 	let {
@@ -34,7 +38,8 @@
 		lastMove,
 		opponentArrow = null,
 		onSquareClick,
-		orientation = 'white'
+		orientation = 'white',
+		interactive = true
 	}: Props = $props();
 
 	const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] as const;
@@ -57,17 +62,17 @@
 		return `/pieces/${color}${c.toUpperCase()}.svg`;
 	}
 
-	const PIECE_NAMES_DE: Record<string, string> = {
-		k: 'König',
-		q: 'Dame',
-		r: 'Turm',
-		b: 'Läufer',
-		n: 'Springer',
-		p: 'Bauer'
+	const PIECE_NAMES: Record<string, string> = {
+		k: 'king',
+		q: 'queen',
+		r: 'rook',
+		b: 'bishop',
+		n: 'knight',
+		p: 'pawn'
 	};
 	function pieceLabel(c: string): string {
-		const color = c === c.toUpperCase() ? 'Weißer' : 'Schwarzer';
-		return `${color} ${PIECE_NAMES_DE[c.toLowerCase()] ?? ''}`.trim();
+		const color = c === c.toUpperCase() ? 'White' : 'Black';
+		return `${color} ${PIECE_NAMES[c.toLowerCase()] ?? ''}`.trim();
 	}
 
 	function parseFenPieces(fen: string): Record<string, string> {
@@ -157,9 +162,11 @@
 			{@const isDest = legalDestinations.includes(sq)}
 			{@const isLast = lastMove && (lastMove.from === sq || lastMove.to === sq)}
 			{@const light = isLight(file, rank)}
-			<button
-				type="button"
-				aria-label={piece ? `${sq} – ${pieceLabel(piece)}` : sq}
+			<svelte:element
+				this={interactive ? 'button' : 'div'}
+				type={interactive ? 'button' : undefined}
+				role={interactive ? 'button' : undefined}
+				aria-label={interactive ? (piece ? `${sq} – ${pieceLabel(piece)}` : sq) : undefined}
 				class="relative flex items-center justify-center transition-colors duration-100 {light
 					? 'bg-[var(--board-light)]'
 					: 'bg-[var(--board-dark)]'}"
@@ -168,7 +175,7 @@
 					: isLast
 						? 'background-image: linear-gradient(var(--board-last), var(--board-last))'
 						: ''}
-				onclick={() => onSquareClick(sq)}
+				onclick={interactive ? () => onSquareClick(sq) : undefined}
 			>
 				{#if piece}
 					<img
@@ -204,7 +211,7 @@
 							: 'text-[var(--board-light)]'}">{file}</span
 					>
 				{/if}
-			</button>
+			</svelte:element>
 		{/each}
 	{/each}
 

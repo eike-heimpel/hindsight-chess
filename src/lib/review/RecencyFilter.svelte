@@ -4,21 +4,32 @@
 	 * persisted in localStorage so it carries across blunders ↔ winnable — one
 	 * mental model for "how far back do I care about".
 	 */
+	import { onMount } from 'svelte';
 	import { RECENCY_OPTIONS, type RecencyWindow } from '$lib/review/recency';
 
-	let { value = $bindable() }: { value: RecencyWindow } = $props();
+	let {
+		value = $bindable(),
+		onChange
+	}: { value: RecencyWindow; onChange?: (value: RecencyWindow) => void } = $props();
 
 	const STORAGE_KEY = 'review:recency';
 
-	// Restore the cross-page selection once, after mount (localStorage is browser-only).
-	$effect(() => {
+	// Restore the cross-page selection once (localStorage is browser-only). This is
+	// a one-shot mount side effect, not a $effect — a $effect here has no real
+	// reactive dependency and would write the bindable back into the parent on
+	// every re-run, fighting the parent's own state.
+	onMount(() => {
 		const saved = localStorage.getItem(STORAGE_KEY);
-		if (saved && RECENCY_OPTIONS.some((o) => o.id === saved)) value = saved as RecencyWindow;
+		if (saved && RECENCY_OPTIONS.some((o) => o.id === saved) && saved !== value) {
+			value = saved as RecencyWindow;
+			onChange?.(value);
+		}
 	});
 
 	function pick(id: RecencyWindow) {
 		value = id;
 		localStorage.setItem(STORAGE_KEY, id);
+		onChange?.(id);
 	}
 </script>
 

@@ -173,7 +173,7 @@
 	</div>
 {/snippet}
 
-<div class="min-h-screen" style="background: var(--bg);">
+<div class="min-h-dvh" style="background: var(--bg);">
 	<main class="mx-auto max-w-4xl px-4 py-8">
 		<header class="mb-6 flex items-baseline justify-between gap-4">
 			<h1 class="text-3xl font-bold tracking-tight" style="color: {C.ink};">Stats</h1>

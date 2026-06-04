@@ -41,7 +41,8 @@
 	/>
 </svelte:head>
 
-<main class="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-6 pt-8 pb-12">
+<main class="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-6 pt-8 pb-12">
+
 	<header in:fade={{ duration: 500 }} class="flex items-center justify-between">
 		<span class="font-display text-base font-medium tracking-tight text-text-2">
 			Hindsight<span class="text-brand">.</span>
