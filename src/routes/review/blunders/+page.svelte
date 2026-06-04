@@ -12,6 +12,7 @@
 	import { withinWindow, RECENCY_DEFAULT, type RecencyWindow } from '$lib/review/recency';
 	import { C } from '$lib/review/charts/palette';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import Disclosure from '$lib/components/Disclosure.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -199,56 +200,64 @@
 							opponentArrow={uciSquares(current.bestMoveUci)}
 						/>
 
+						<!-- Words first: the plain verdict + the explain pathway lead; the
+						     raw numbers are a deliberate second layer (remembered choice). -->
 						<div class="flex flex-col gap-4">
-							<div>
-								<div class="eyebrow mb-1">Move {current.moveNumber}</div>
-								<div class="text-2xl font-bold tabular-nums" style="color: {C.bad};">
-									{current.san}
-								</div>
-							</div>
+							<p class="text-base leading-relaxed" style="color: {C.body};">
+								You played <strong style="color: {C.bad};">{current.san}</strong>. The engine
+								preferred <strong style="color: {C.good};">{current.bestMoveSan}</strong>.
+							</p>
+							<p class="-mt-2 text-sm" style="color: {C.muted};">
+								Cost you about {Math.round(current.winBefore - current.winAfter)}% of your winning
+								chances.
+							</p>
 
 							<div>
-								<div class="eyebrow mb-1">Win % swing (your POV)</div>
-								<div class="text-lg font-semibold tabular-nums" style="color: {C.ink};">
-									{Math.round(current.winBefore)}% →
-									<span style="color: {C.bad};">{Math.round(current.winAfter)}%</span>
-									<span class="text-sm" style="color: {C.muted};"
-										>(−{Math.round(current.winBefore - current.winAfter)})</span
+								{#if currentExplain?.text}
+									<div class="explain">{currentExplain.text}</div>
+								{:else if currentExplain?.loading}
+									<button class="btn" disabled>
+										Analyzing the position…{#if currentExplain.progress}
+											({currentExplain.progress.done}/{currentExplain.progress.total}){/if}
+									</button>
+								{:else}
+									<button class="btn" onclick={() => explain(current)}
+										>Explain what went wrong</button
 									>
-								</div>
+									{#if currentExplain?.error}<span class="ml-2 text-xs" style="color: {C.bad};"
+											>{currentExplain.error}</span
+										>{/if}
+								{/if}
 							</div>
 
-							<div>
-								<div class="eyebrow mb-1">Better</div>
-								<div class="text-lg font-semibold tabular-nums" style="color: {C.good};">
-									{current.bestMoveSan}
+							<Disclosure
+								storageKey="review:details"
+								showLabel="Show the numbers"
+								hideLabel="Hide the numbers"
+							>
+								<div class="flex flex-col gap-3">
+									<div>
+										<div class="eyebrow mb-1">Move</div>
+										<div class="text-lg font-semibold tabular-nums" style="color: {C.ink};">
+											{current.moveNumber}. {current.san}
+										</div>
+									</div>
+									<div>
+										<div class="eyebrow mb-1">Win % (your POV)</div>
+										<div class="text-lg font-semibold tabular-nums" style="color: {C.ink};">
+											{Math.round(current.winBefore)}% →
+											<span style="color: {C.bad};">{Math.round(current.winAfter)}%</span>
+										</div>
+									</div>
+									{#if current.opening}
+										<div>
+											<div class="eyebrow mb-1">Opening</div>
+											<div class="text-sm" style="color: {C.body};">{current.opening}</div>
+										</div>
+									{/if}
 								</div>
-							</div>
-
-							{#if current.opening}
-								<div>
-									<div class="eyebrow mb-1">Opening</div>
-									<div class="text-sm" style="color: {C.body};">{current.opening}</div>
-								</div>
-							{/if}
+							</Disclosure>
 						</div>
-					</div>
-
-					<!-- Explain -->
-					<div class="mt-4">
-						{#if currentExplain?.text}
-							<div class="explain">{currentExplain.text}</div>
-						{:else if currentExplain?.loading}
-							<button class="btn" disabled>
-								Analyzing the position…{#if currentExplain.progress}
-									({currentExplain.progress.done}/{currentExplain.progress.total}){/if}
-							</button>
-						{:else}
-							<button class="btn" onclick={() => explain(current)}>Explain what went wrong</button>
-							{#if currentExplain?.error}<span class="ml-2 text-xs" style="color: {C.bad};"
-									>{currentExplain.error}</span
-								>{/if}
-						{/if}
 					</div>
 
 					<!-- Navigation -->
