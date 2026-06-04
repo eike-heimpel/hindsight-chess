@@ -2,8 +2,10 @@
 	/* eslint-disable svelte/no-navigation-without-resolve --
 	 * Static internal nav links; resolve() adds noise without value here (same
 	 * posture as the other route files). */
+	import { invalidateAll } from '$app/navigation';
 	import ConnectProfile from '$lib/review/ConnectProfile.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import { batchAnalyze, type BatchProgress, type GameRef } from '$lib/client/reviewStats';
 	import type { PageData, ActionData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -12,6 +14,28 @@
 	const dateFmt = new Intl.DateTimeFormat('en', { dateStyle: 'medium' });
 
 	const platformLabel = (s: string) => (s === 'lichess' ? 'Lichess' : 'Chess.com');
+
+	/* Analysis is browser compute (Stockfish in a Web Worker), so unlike Sync /
+	 * Backfill it can't be a server form action — it runs here and re-loads the
+	 * page to refresh coverage. One worker, so only one profile analyses at a time. */
+	let analyzingKey = $state<string | null>(null);
+	let progress = $state<BatchProgress | null>(null);
+	let notes = $state<Record<string, string>>({});
+
+	async function analyze(key: string, pending: GameRef[]) {
+		analyzingKey = key;
+		progress = null;
+		const result = await batchAnalyze(pending, (p) => (progress = p));
+		analyzingKey = null;
+		progress = null;
+		notes = {
+			...notes,
+			[key]:
+				`Analyzed ${result.analyzed} game(s).` +
+				(result.failed.length ? ` ${result.failed.length} couldn’t be analyzed.` : '')
+		};
+		await invalidateAll();
+	}
 
 	function syncedLabel(d: Date | null): string {
 		if (!d) return 'never synced';
@@ -56,6 +80,7 @@
 			<h2 class="mb-3 text-sm font-medium tracking-wide text-text-muted">Connected profiles</h2>
 			<div class="space-y-3">
 				{#each data.accounts as a (a.account.source + ':' + a.account.username)}
+					{@const key = a.account.source + ':' + a.account.username}
 					<div
 						class="rounded-xl border bg-surface-1 p-4 {a.active
 							? 'border-border-strong ring-1 ring-brand/40'
@@ -87,9 +112,21 @@
 
 						<div class="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
 							<span class="text-xs text-text-muted tabular-nums">
-								{a.gamesCount} game{a.gamesCount === 1 ? '' : 's'} · {syncedLabel(a.lastSyncedAt)}
+								{a.gamesCount} game{a.gamesCount === 1 ? '' : 's'}
+								{#if a.coverage.total > 0}· {a.coverage.analyzed}/{a.coverage.total} analyzed{/if}
+								· {syncedLabel(a.lastSyncedAt)}
 							</span>
 							<div class="flex items-center gap-1">
+								{#if a.pending.length > 0}
+									<button
+										type="button"
+										onclick={() => analyze(key, a.pending)}
+										disabled={analyzingKey !== null}
+										title="Run move analysis on this profile's un-analyzed games"
+										class="rounded-md px-2.5 py-1.5 text-xs text-text-muted hover:bg-surface-2 hover:text-text-2 disabled:opacity-50 pointer-coarse:inline-flex pointer-coarse:min-h-9 pointer-coarse:items-center"
+										>{analyzingKey === key ? 'Analyzing…' : `⚙ Analyze ${a.pending.length}`}</button
+									>
+								{/if}
 								<form method="POST" action="?/sync">
 									<input type="hidden" name="source" value={a.account.source} />
 									<input type="hidden" name="username" value={a.account.username} />
@@ -122,6 +159,22 @@
 								</form>
 							</div>
 						</div>
+
+						{#if analyzingKey === key && progress}
+							<div class="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+								<div
+									class="h-full rounded-full bg-good transition-[width] duration-150"
+									style="width: {progress.gamesTotal
+										? (progress.gamesDone / progress.gamesTotal) * 100
+										: 0}%"
+								></div>
+							</div>
+							<p class="mt-1 text-xs text-text-muted tabular-nums">
+								Game {progress.gamesDone + 1} / {progress.gamesTotal}
+								{#if progress.current.total}· {progress.current.done}/{progress.current.total} positions{/if}
+							</p>
+						{/if}
+						{#if notes[key]}<p class="mt-2 text-xs text-text-2">{notes[key]}</p>{/if}
 					</div>
 				{/each}
 			</div>

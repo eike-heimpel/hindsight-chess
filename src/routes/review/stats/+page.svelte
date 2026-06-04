@@ -2,11 +2,9 @@
 	/* eslint-disable svelte/no-navigation-without-resolve --
 	 * Static /review links and the runtime-built game href (?t.source/t.gameId)
 	 * read clearer as plain hrefs; same convention as the other /review pages. */
-	import { invalidateAll } from '$app/navigation';
 	import type { PageData } from './$types';
 	import type { MoveClass } from '$lib/review/classify';
 	import type { Phase, RatingBand, TrendPoint } from '$lib/review/stats/types';
-	import { batchAnalyze, type BatchProgress } from '$lib/client/reviewStats';
 	import LineChart from '$lib/review/charts/LineChart.svelte';
 	import BarChart from '$lib/review/charts/BarChart.svelte';
 	import SegmentedBar from '$lib/review/charts/SegmentedBar.svelte';
@@ -84,23 +82,6 @@
 
 	const toSeries = (pts: TrendPoint[]) =>
 		pts.map((p) => ({ label: short(p.playedAt), value: p.value }));
-
-	// --- batch analyze ---
-	let analyzing = $state(false);
-	let progress = $state<BatchProgress | null>(null);
-	let batchNote = $state<string | null>(null);
-
-	async function runBatch() {
-		analyzing = true;
-		batchNote = null;
-		const result = await batchAnalyze(data.pending, (p) => (progress = p));
-		analyzing = false;
-		progress = null;
-		batchNote =
-			`Analyzed ${result.analyzed} game(s).` +
-			(result.failed.length ? ` ${result.failed.length} failed.` : '');
-		await invalidateAll();
-	}
 </script>
 
 <svelte:head><title>Review · Stats</title></svelte:head>
@@ -191,45 +172,14 @@
 				<a href="/review" class="underline">games page</a>.
 			</p>
 		{:else}
-			<!-- Coverage + batch analyze -->
-			<section class="card mb-6">
-				<div class="flex flex-wrap items-center justify-between gap-3">
-					<div class="text-sm">
-						<span class="font-semibold" style="color: {C.ink};"
-							>{data.coverage.analyzed} / {data.coverage.total}</span
-						>
-						<span style="color: {C.muted};"> games analyzed</span>
-						{#if data.pending.length > 0}
-							<p class="mt-0.5 text-xs" style="color: {C.muted};">
-								Accuracy, blunders and move quality need analysis. Openings, results and ratings
-								already cover every game.
-							</p>
-						{/if}
-					</div>
-					{#if data.pending.length > 0}
-						<button class="btn" onclick={runBatch} disabled={analyzing}>
-							{analyzing ? 'Analyzing…' : `Analyze remaining (${data.pending.length})`}
-						</button>
-					{/if}
-				</div>
-				{#if analyzing && progress}
-					<div class="mt-3">
-						<div class="h-1.5 w-full overflow-hidden rounded-full" style="background: {C.track};">
-							<div
-								class="h-full rounded-full transition-[width] duration-150"
-								style="width: {progress.gamesTotal
-									? (progress.gamesDone / progress.gamesTotal) * 100
-									: 0}%; background: {C.good};"
-							></div>
-						</div>
-						<p class="mt-1 text-xs" style="color: {C.muted};">
-							Game {progress.gamesDone + 1} / {progress.gamesTotal}
-							{#if progress.current.total}· {progress.current.done}/{progress.current.total} positions{/if}
-						</p>
-					</div>
-				{/if}
-				{#if batchNote}<p class="mt-2 text-xs" style="color: {C.body};">{batchNote}</p>{/if}
-			</section>
+			{#if data.coverage.analyzed < data.coverage.total}
+				<!-- Honest coverage caveat — accuracy/move-quality only count analyzed
+				     games; the catch-up control lives on the accounts page. -->
+				<p class="-mt-2 mb-6 text-xs" style="color: {C.muted};">
+					Accuracy and move quality are based on {data.coverage.analyzed} of {data.coverage.total} games.
+					<a href="/account" class="underline" style="color: {C.body};">Analyze the rest →</a>
+				</p>
+			{/if}
 
 			<!-- Time class — primary axis (never pooled across classes) -->
 			<div class="segmented mb-4">
@@ -624,33 +574,12 @@
 		background: var(--brand);
 	}
 
-	.btn {
-		border-radius: 0.6rem;
-		border: 1px solid var(--border-strong);
-		background: var(--surface-1);
-		padding: 0.45rem 0.9rem;
-		font-size: 0.85rem;
-		font-weight: 600;
-		color: var(--text);
-		transition: background var(--dur);
-	}
-	.btn:hover:not(:disabled) {
-		background: var(--surface-2);
-	}
-	.btn:disabled {
-		cursor: default;
-		opacity: 0.6;
-	}
-
 	/* Roomier tap targets on touch devices; desktop keeps the compact controls. */
 	@media (pointer: coarse) {
 		.seg {
 			min-height: 2.5rem;
 		}
 		.tab {
-			min-height: 2.75rem;
-		}
-		.btn {
 			min-height: 2.75rem;
 		}
 	}

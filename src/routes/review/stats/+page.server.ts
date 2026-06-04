@@ -9,8 +9,9 @@ import { computeReviewStats } from '$lib/review/stats/compute';
 /**
  * Cross-game stats for the current user, aggregated over all of their linked
  * accounts. Stats are computed server-side from already-stored games + cached
- * analyses (pure layer — no engine here). Games without an analysis show up as
- * `pending`; the page's batch-analyze loop fills them in the browser.
+ * analyses (pure layer — no engine here). `coverage` reports how many games
+ * back the accuracy/move-quality numbers; the catch-up analyze control lives on
+ * the accounts page.
  */
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!useMongo()) throw error(503, 'mongo not configured');
@@ -27,14 +28,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	const stats = computeReviewStats({ games, analyses, accounts: new Set(accounts) });
 
-	const pending = games
-		.filter((g) => !analyses.has(`${g.source}:${g.gameId}`))
-		.map((g) => ({ source: g.source, gameId: g.gameId }));
+	const analyzed = games.filter((g) => analyses.has(`${g.source}:${g.gameId}`)).length;
 
 	return {
 		accounts,
 		stats,
-		pending,
-		coverage: { analyzed: games.length - pending.length, total: games.length }
+		coverage: { analyzed, total: games.length }
 	};
 };
