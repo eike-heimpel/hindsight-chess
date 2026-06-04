@@ -165,6 +165,8 @@
 						unit={cfg.unit}
 						yMin={cfg.unit === '' && cfg.goodUp === false ? 0 : undefined}
 						smoothWindow={cfg.smooth ? MA_WINDOW : undefined}
+						axis
+						legend={cfg.smooth}
 					/>
 				</div>
 			{/if}
@@ -256,10 +258,10 @@
 							<div class="sm:w-44 sm:shrink-0">
 								<div class="eyebrow mb-1">Win rate</div>
 								<div
-									class="text-5xl font-bold tracking-tight tabular-nums"
+									class="font-display text-5xl font-semibold tracking-tight tabular-nums"
 									style="color: {winRateColor(cur.winRate)};"
 								>
-									{Math.round(cur.winRate)}<span class="text-2xl font-semibold">%</span>
+									{Math.round(cur.winRate)}<span class="text-2xl">%</span>
 								</div>
 								<div class="mt-1 text-sm" style="color: {C.muted};">
 									over {cur.totalGames} games
@@ -491,7 +493,8 @@
 		box-shadow: var(--shadow-1);
 	}
 	.section-title {
-		font-size: 0.95rem;
+		font-family: var(--font-display);
+		font-size: 1.05rem;
 		font-weight: 600;
 		color: var(--text);
 	}
@@ -511,8 +514,9 @@
 		color: var(--text-muted);
 	}
 	.num-lg {
+		font-family: var(--font-display);
 		font-size: 2rem;
-		font-weight: 700;
+		font-weight: 600;
 		line-height: 1.1;
 		font-variant-numeric: tabular-nums;
 	}
