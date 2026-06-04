@@ -203,18 +203,18 @@
 						<div class="eyebrow mb-1">Winnable losses</div>
 						<div class="num-xl" style="color: {rows.length ? C.bad : C.good};">{rows.length}</div>
 					</div>
-					<div class="flex gap-6 pb-1 text-sm">
+					<div class="flex gap-4 pb-1 text-sm sm:gap-6">
 						<div>
 							<div class="num-md" style="color: {C.bad};">{thrownCount}</div>
-							<div style="color: {C.muted};">thrown away</div>
+							<div class="whitespace-nowrap" style="color: {C.muted};">thrown away</div>
 						</div>
 						<div>
 							<div class="num-md" style="color: var(--warn);">{outplayedCount}</div>
-							<div style="color: {C.muted};">out-resourced</div>
+							<div class="whitespace-nowrap" style="color: {C.muted};">out-resourced</div>
 						</div>
 						<div>
 							<div class="num-md" style="color: {C.muted};">{filtered}</div>
-							<div style="color: {C.muted};">spikes filtered</div>
+							<div class="whitespace-nowrap" style="color: {C.muted};">spikes filtered</div>
 						</div>
 					</div>
 				</div>

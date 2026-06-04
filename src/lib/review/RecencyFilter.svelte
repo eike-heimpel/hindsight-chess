@@ -60,17 +60,17 @@
 		color: var(--text-muted);
 	}
 	.segmented {
-		display: inline-flex;
-		max-width: 100%;
+		display: flex;
+		min-width: 0;
+		/* Wrap to a second row when the strip can't fit (≤~390px) rather than
+		 * clipping the last window behind a hidden scroll — every option stays
+		 * visible without a swipe. The pill radius reads as a rounded block when
+		 * it wraps. */
+		flex-wrap: wrap;
 		gap: 0.25rem;
 		padding: 0.25rem;
-		border-radius: 9999px;
+		border-radius: 1.25rem;
 		background: var(--surface-2);
-		overflow-x: auto;
-		scrollbar-width: none;
-	}
-	.segmented::-webkit-scrollbar {
-		display: none;
 	}
 	.seg {
 		flex-shrink: 0;

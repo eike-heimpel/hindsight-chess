@@ -194,19 +194,19 @@
 			{/each}
 		</div>
 
-		<div class="flex flex-wrap items-center gap-2">
+		<div class="flex flex-col gap-2 sm:flex-row sm:items-center">
 			<input
 				bind:value={username}
 				placeholder="your {SOURCE_LABEL[source]} username"
 				autocomplete="off"
 				autocapitalize="off"
 				spellcheck="false"
-				class="min-w-0 flex-1 rounded-lg border border-border bg-surface-1 px-3 py-2.5 text-text focus:border-border-strong focus:outline-none"
+				class="w-full min-w-0 rounded-lg border border-border bg-surface-1 px-3 py-2.5 text-text focus:border-border-strong focus:outline-none sm:flex-1"
 			/>
 			<button
 				type="submit"
 				disabled={isAnalyzing}
-				class="rounded-lg bg-brand px-5 py-2.5 font-medium text-white transition-colors hover:bg-brand-hover disabled:opacity-60"
+				class="w-full rounded-lg bg-brand px-5 py-2.5 font-medium text-white transition-colors hover:bg-brand-hover disabled:opacity-60 sm:w-auto"
 			>
 				See my last game <span aria-hidden="true">→</span>
 			</button>
