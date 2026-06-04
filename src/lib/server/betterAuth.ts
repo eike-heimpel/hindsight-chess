@@ -1,3 +1,4 @@
+import { dev } from '$app/environment';
 import { betterAuth } from 'better-auth';
 import { mongodbAdapter } from 'better-auth/adapters/mongodb';
 import { magicLink } from 'better-auth/plugins/magic-link';
@@ -20,7 +21,10 @@ function createAuth() {
 		baseURL: getBetterAuthUrl(),
 		secret: getBetterAuthSecret(),
 		database: mongodbAdapter(getMongoDb()),
-		emailAndPassword: { enabled: false },
+		// Magic-link only in production. Email+password exists purely so the
+		// dev-only `/dev-login` route can mint a real session without the email
+		// round-trip — `dev` is false in any built/deployed bundle.
+		emailAndPassword: { enabled: dev },
 		// Memory storage (the default) is per-isolate and useless on Vercel's
 		// serverless functions — persist limits in Mongo instead.
 		rateLimit: { storage: 'database' },
