@@ -251,7 +251,7 @@
 										>{v.tier === 'thrown' ? 'Thrown away' : 'Outplayed late'}</span
 									>
 									<span class="font-semibold" style="color: {C.ink};">vs {c.opponent}</span>
-									<span class="text-sm" style="color: {C.muted};"
+									<span class="whitespace-nowrap text-sm" style="color: {C.muted};"
 										>· {short(c.playedAt)} · {c.outcome === 'loss' ? 'lost' : 'drew'}</span
 									>
 								</div>
@@ -425,6 +425,8 @@
 	}
 
 	.tier {
+		flex-shrink: 0;
+		white-space: nowrap;
 		border-radius: 9999px;
 		padding: 0.15rem 0.6rem;
 		font-size: 0.7rem;

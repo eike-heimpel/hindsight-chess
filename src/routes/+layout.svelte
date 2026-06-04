@@ -22,6 +22,17 @@
 
 	let navOpen = $state(false);
 
+	// A quiet reward for reaching the end: a thin eval-line hairline draws out
+	// from both flanks of the pill (echoes the win% line that runs the app).
+	// Only on pages long enough to actually scroll — so it reads as "you made it
+	// to the bottom," not as permanent chrome.
+	let atBottom = $state(false);
+
+	function checkBottom() {
+		const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+		atBottom = scrollable > 8 && window.scrollY >= scrollable - 8;
+	}
+
 	const navItems = [
 		{ href: '/home', label: 'Home', primary: true },
 		{ href: '/review', label: 'Your games' },
@@ -40,6 +51,7 @@
 
 	afterNavigate(() => {
 		navOpen = false;
+		atBottom = false;
 	});
 
 	async function logout() {
@@ -54,6 +66,8 @@
 	onkeydown={(e) => {
 		if (e.key === 'Escape') navOpen = false;
 	}}
+	onscroll={checkBottom}
+	onresize={checkBottom}
 />
 
 {#if showChrome}
@@ -62,9 +76,11 @@
 	     place. -->
 	{#if !navOpen}
 		<nav
-			class="fixed bottom-0 left-1/2 z-50 -translate-x-1/2"
+			class="fixed bottom-0 left-1/2 z-50 flex -translate-x-1/2 items-center"
+			class:at-bottom={atBottom}
 			style="bottom: max(1rem, env(safe-area-inset-bottom));"
 		>
+			<span class="menu-line menu-line-left" aria-hidden="true"></span>
 			<button
 				type="button"
 				aria-haspopup="menu"
@@ -86,6 +102,7 @@
 				</svg>
 				<span class="font-display text-sm font-semibold tracking-tight">Menu</span>
 			</button>
+			<span class="menu-line menu-line-right" aria-hidden="true"></span>
 		</nav>
 	{/if}
 
@@ -142,4 +159,56 @@
 	{/if}
 {/if}
 
-{@render children()}
+<!-- Reserve clearance for the fixed Menu pill once, here, so no page has to
+     remember to pad its own bottom (and they drifted: pb-16 vs py-8). Only when
+     the pill is actually shown. -->
+<div class={showChrome ? 'pb-10' : undefined}>
+	{@render children()}
+</div>
+
+<style>
+	/* Hairlines flanking the Menu pill: hidden until the page bottom is reached,
+	   then they draw outward and settle — a calm echo of the win% eval line. */
+	.menu-line {
+		height: 1px;
+		width: clamp(2rem, 22vw, 8rem);
+		pointer-events: none;
+		opacity: 0;
+		transform: scaleX(0);
+		transition:
+			opacity 0.5s ease,
+			transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+	}
+	.menu-line-left {
+		margin-right: 0.6rem;
+		transform-origin: right center;
+		background: linear-gradient(
+			to left,
+			color-mix(in srgb, var(--brand) 55%, transparent),
+			transparent
+		);
+	}
+	.menu-line-right {
+		margin-left: 0.6rem;
+		transform-origin: left center;
+		background: linear-gradient(
+			to right,
+			color-mix(in srgb, var(--brand) 55%, transparent),
+			transparent
+		);
+	}
+	.at-bottom .menu-line {
+		opacity: 1;
+		transform: scaleX(1);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.menu-line {
+			transform: none;
+			transition: opacity 0.3s ease;
+		}
+		.at-bottom .menu-line {
+			transform: none;
+		}
+	}
+</style>

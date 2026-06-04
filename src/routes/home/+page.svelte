@@ -232,7 +232,7 @@
 <svelte:window onkeydown={onKey} />
 
 <div class="glow">
-	<main class="mx-auto max-w-2xl px-5 pt-10 pb-16">
+	<main class="mx-auto max-w-2xl px-5 pt-10 pb-10">
 		<header class="mb-9">
 			<h1 class="font-display text-3xl font-semibold tracking-tight text-text">
 				{greeting}{#if displayName}, {displayName}{/if}.
