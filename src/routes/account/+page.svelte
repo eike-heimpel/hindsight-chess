@@ -24,12 +24,13 @@
 
 <svelte:head><title>Your accounts · Hindsight</title></svelte:head>
 
-<main class="mx-auto max-w-2xl px-5 py-8">
-	<header class="mb-6 flex items-baseline justify-between gap-4">
+<main class="mx-auto min-h-dvh max-w-2xl px-5 py-8">
+	<header class="mb-6 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
 		<h1 class="text-2xl font-bold text-text">Your accounts</h1>
 		<nav class="flex items-center gap-4 text-sm">
-			<a href="/review" class="font-medium text-text-2 hover:text-text">Your games</a>
-			<a href="/home" class="text-text-muted hover:text-text-2">← Home</a>
+			<a href="/review" class="-my-1.5 py-1.5 font-medium text-text-2 hover:text-text">Your games</a
+			>
+			<a href="/home" class="-my-1.5 py-1.5 text-text-muted hover:text-text-2">← Home</a>
 		</nav>
 	</header>
 
@@ -78,14 +79,14 @@
 									<input type="hidden" name="username" value={a.account.username} />
 									<button
 										type="submit"
-										class="rounded-md px-2 py-1 text-xs text-text-muted hover:bg-surface-2 hover:text-text-2"
+										class="rounded-md px-2.5 py-1.5 text-xs text-text-muted hover:bg-surface-2 hover:text-text-2 pointer-coarse:inline-flex pointer-coarse:min-h-9 pointer-coarse:items-center"
 										>Make active</button
 									>
 								</form>
 							{/if}
 						</div>
 
-						<div class="mt-3 flex items-center justify-between gap-3">
+						<div class="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
 							<span class="text-xs text-text-muted tabular-nums">
 								{a.gamesCount} game{a.gamesCount === 1 ? '' : 's'} · {syncedLabel(a.lastSyncedAt)}
 							</span>
@@ -96,7 +97,7 @@
 									<button
 										type="submit"
 										title="Pull new games since the last sync"
-										class="rounded-md px-2 py-1 text-xs text-text-muted hover:bg-surface-2 hover:text-text-2"
+										class="rounded-md px-2.5 py-1.5 text-xs text-text-muted hover:bg-surface-2 hover:text-text-2 pointer-coarse:inline-flex pointer-coarse:min-h-9 pointer-coarse:items-center"
 										>↻ Sync</button
 									>
 								</form>
@@ -106,7 +107,7 @@
 									<button
 										type="submit"
 										title="Re-pull the full game history (back-fills older games)"
-										class="rounded-md px-2 py-1 text-xs text-text-muted hover:bg-surface-2 hover:text-text-2"
+										class="rounded-md px-2.5 py-1.5 text-xs text-text-muted hover:bg-surface-2 hover:text-text-2 pointer-coarse:inline-flex pointer-coarse:min-h-9 pointer-coarse:items-center"
 										>⤓ Backfill</button
 									>
 								</form>
@@ -116,7 +117,7 @@
 									<button
 										type="submit"
 										title="Unlink profile"
-										class="rounded-md px-2 py-1 text-xs text-text-muted hover:bg-surface-2 hover:text-bad"
+										class="rounded-md px-2.5 py-1.5 text-xs text-text-muted hover:bg-surface-2 hover:text-bad pointer-coarse:inline-flex pointer-coarse:min-h-9 pointer-coarse:items-center"
 										>✕ Remove</button
 									>
 								</form>

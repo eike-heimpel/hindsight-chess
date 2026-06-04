@@ -49,8 +49,10 @@
 	<header class="mb-6 flex items-baseline justify-between gap-4">
 		<h1 class="text-2xl font-bold text-text">Your games</h1>
 		<nav class="flex items-center gap-4 text-sm">
-			<a href="/review/stats" class="font-medium text-text-2 hover:text-text">Stats</a>
-			<a href="/home" class="text-text-muted hover:text-text-2">← Home</a>
+			<a href="/review/stats" class="-my-1.5 py-1.5 font-medium text-text-2 hover:text-text"
+				>Stats</a
+			>
+			<a href="/home" class="-my-1.5 py-1.5 text-text-muted hover:text-text-2">← Home</a>
 		</nav>
 	</header>
 
@@ -63,7 +65,9 @@
 					: 'bg-good/15 text-good'}">{platformLabel(data.account.source)}</span
 			>
 			<span class="font-medium text-text-2">{data.account.username}</span>
-			<a href="/account" class="ml-auto text-text-muted hover:text-text-2">Manage accounts →</a>
+			<a href="/account" class="-my-1.5 ml-auto py-1.5 text-text-muted hover:text-text-2"
+				>Manage accounts →</a
+			>
 		</div>
 	{/if}
 

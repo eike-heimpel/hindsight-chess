@@ -229,7 +229,7 @@
 					{/if}
 					<a
 						href="/review{data.me ? `?user=${data.me}` : ''}"
-						class="text-sm font-medium transition-colors"
+						class="-my-1.5 py-1.5 text-sm font-medium transition-colors"
 						style="color: {C.muted};">← Games</a
 					>
 				</div>
@@ -567,6 +567,9 @@
 		.ctrl-solo {
 			height: 2.75rem;
 			width: 2.75rem;
+		}
+		.btn {
+			min-height: 2.75rem;
 		}
 	}
 

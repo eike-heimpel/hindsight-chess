@@ -111,7 +111,7 @@
 	<span class="tip-anchor">
 		<button
 			type="button"
-			class="cursor-pointer rounded-full border-0 px-2 py-0.5 text-xs font-semibold tabular-nums"
+			class="cursor-pointer rounded-full border-0 px-2.5 py-1 text-xs font-semibold tabular-nums pointer-coarse:px-3 pointer-coarse:py-1.5"
 			style="color: {good ? C.good : C.bad}; background: color-mix(in srgb, {good
 				? C.good
 				: C.bad} 12%, transparent);"
@@ -177,7 +177,9 @@
 	<main class="mx-auto max-w-4xl px-4 py-8">
 		<header class="mb-6 flex items-baseline justify-between gap-4">
 			<h1 class="text-3xl font-bold tracking-tight" style="color: {C.ink};">Stats</h1>
-			<a href="/review" class="text-sm font-medium" style="color: {C.muted};">← Games</a>
+			<a href="/review" class="-my-1.5 py-1.5 text-sm font-medium" style="color: {C.muted};"
+				>← Games</a
+			>
 		</header>
 
 		{#if data.accounts.length === 0}
@@ -638,6 +640,19 @@
 	.btn:disabled {
 		cursor: default;
 		opacity: 0.6;
+	}
+
+	/* Roomier tap targets on touch devices; desktop keeps the compact controls. */
+	@media (pointer: coarse) {
+		.seg {
+			min-height: 2.5rem;
+		}
+		.tab {
+			min-height: 2.75rem;
+		}
+		.btn {
+			min-height: 2.75rem;
+		}
 	}
 
 	.colorcard {

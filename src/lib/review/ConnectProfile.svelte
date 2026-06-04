@@ -184,7 +184,8 @@
 				<button
 					type="button"
 					onclick={() => (source = s)}
-					class="rounded-md px-3 py-1.5 text-sm font-medium transition-colors {source === s
+					class="rounded-md px-3 py-1.5 text-sm font-medium transition-colors pointer-coarse:py-2.5 {source ===
+					s
 						? 'bg-surface-3 text-text'
 						: 'text-text-muted hover:text-text-2'}"
 				>

@@ -119,7 +119,9 @@
 	<main class="mx-auto max-w-4xl px-4 py-8">
 		<header class="mb-2 flex items-baseline justify-between gap-4">
 			<h1 class="text-3xl font-bold tracking-tight" style="color: {C.ink};">Winnable losses</h1>
-			<a href="/review/stats" class="text-sm font-medium" style="color: {C.muted};">← Stats</a>
+			<a href="/review/stats" class="-my-1.5 py-1.5 text-sm font-medium" style="color: {C.muted};"
+				>← Stats</a
+			>
 		</header>
 		<p class="mb-6 max-w-2xl text-sm leading-relaxed" style="color: {C.body};">
 			Games you were clearly winning and didn't close out. A position only counts if you
@@ -246,7 +248,7 @@
 									href="/review/{c.source}/{c.gameId}?orient={c.side === 'w'
 										? 'white'
 										: 'black'}{v.giveBack ? `&ply=${v.giveBack.ply}` : ''}"
-									class="text-sm font-medium"
+									class="-my-1.5 py-1.5 text-sm font-medium"
 									style="color: {C.rating};">{v.giveBack ? 'Replay from the slip →' : 'Replay →'}</a
 								>
 							</div>
@@ -442,6 +444,20 @@
 	.btn:disabled {
 		cursor: default;
 		opacity: 0.6;
+	}
+
+	/* Roomier tap targets on touch devices; desktop keeps the compact controls. */
+	@media (pointer: coarse) {
+		.seg {
+			min-height: 2.5rem;
+		}
+		.btn {
+			min-height: 2.75rem;
+		}
+		.pill {
+			min-height: 2.5rem;
+			padding: 0.5rem 0.9rem;
+		}
 	}
 
 	.explain {
