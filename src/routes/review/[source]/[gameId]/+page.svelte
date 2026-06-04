@@ -11,6 +11,7 @@
 	import { uciSquares, type GameAnalysis, type MoveAnalysis } from '$lib/review/analysis';
 	import type { MoveClass } from '$lib/review/classify';
 	import { C, CLASS_COLOR } from '$lib/review/charts/palette';
+	import BackLink from '$lib/components/BackLink.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -215,24 +216,20 @@
 <div class="min-h-dvh" style="background: var(--bg);">
 	<main class="mx-auto max-w-6xl px-4 py-5">
 		<header class="mb-4">
+			<div class="mb-1">
+				<BackLink href="/review{data.me ? `?user=${data.me}` : ''}" label="Games" />
+			</div>
 			<div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-				<h1 class="text-2xl font-bold tracking-tight" style="color: {C.ink};">
+				<h1 class="font-display text-2xl font-semibold tracking-tight" style="color: {C.ink};">
 					{game.white.username}<span class="px-1.5 font-normal" style="color: {C.muted};">vs</span
 					>{game.black.username}
 					<span class="ml-1.5 text-lg font-semibold tabular-nums" style="color: {C.muted};"
 						>{resultLabel}</span
 					>
 				</h1>
-				<div class="flex items-baseline gap-4">
-					{#if analysis}
-						<span class="chip-meta">Analyzed · depth {analysis.depth}</span>
-					{/if}
-					<a
-						href="/review{data.me ? `?user=${data.me}` : ''}"
-						class="-my-1.5 py-1.5 text-sm font-medium transition-colors"
-						style="color: {C.muted};">← Games</a
-					>
-				</div>
+				{#if analysis}
+					<span class="chip-meta">Analyzed · depth {analysis.depth}</span>
+				{/if}
 			</div>
 			<p class="mt-0.5 text-sm" style="color: {C.muted};">
 				{game.opening ?? 'Unknown opening'} · <span class="capitalize">{game.timeClass}</span>

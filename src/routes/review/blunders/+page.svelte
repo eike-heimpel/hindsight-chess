@@ -11,6 +11,7 @@
 	import RecencyFilter from '$lib/review/RecencyFilter.svelte';
 	import { withinWindow, RECENCY_DEFAULT, type RecencyWindow } from '$lib/review/recency';
 	import { C } from '$lib/review/charts/palette';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -126,16 +127,9 @@
 
 <div class="min-h-dvh" style="background: var(--bg);">
 	<main class="mx-auto max-w-4xl px-4 py-8">
-		<header class="mb-2 flex items-baseline justify-between gap-4">
-			<h1 class="text-3xl font-bold tracking-tight" style="color: {C.ink};">Blunder trainer</h1>
-			<a href="/review/stats" class="-my-1.5 py-1.5 text-sm font-medium" style="color: {C.muted};"
-				>← Stats</a
-			>
-		</header>
+		<PageHeader title="Blunder trainer" back={{ href: '/review/stats', label: 'Stats' }} />
 		<p class="mb-6 max-w-2xl text-sm leading-relaxed" style="color: {C.body};">
-			Every blunder you played, worst first, on a board. The move you played is highlighted; the
-			arrow is the engine's better move. Step through with <kbd>←</kbd> / <kbd>→</kbd>, and
-			<strong>Explain</strong> for a grounded breakdown of what went wrong.
+			Your blunders, worst first — what you played, the better move, and why.
 		</p>
 
 		{#if data.accounts.length === 0}
@@ -291,15 +285,6 @@
 	.muted {
 		font-size: 0.875rem;
 		color: var(--text-muted);
-	}
-	kbd {
-		border-radius: 0.3rem;
-		border: 1px solid var(--border-strong);
-		background: var(--surface-1);
-		padding: 0.05rem 0.35rem;
-		font-size: 0.75rem;
-		font-weight: 600;
-		color: var(--text-2);
 	}
 
 	/* Scrolls internally rather than overflowing the viewport on narrow phones. */

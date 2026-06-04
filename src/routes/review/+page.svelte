@@ -4,6 +4,7 @@
 	 * handles route patterns but hurts readability here (same call shape as the
 	 * catalogue's /train/aufgabe/[id] links). */
 	import type { PageData } from './$types';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -46,15 +47,13 @@
 <svelte:head><title>Your games</title></svelte:head>
 
 <main class="mx-auto max-w-3xl px-4 py-8">
-	<header class="mb-6 flex items-baseline justify-between gap-4">
-		<h1 class="text-2xl font-bold text-text">Your games</h1>
-		<nav class="flex items-center gap-4 text-sm">
+	<PageHeader title="Your games" back={{ href: '/home', label: 'Home' }}>
+		{#snippet actions()}
 			<a href="/review/stats" class="-my-1.5 py-1.5 font-medium text-text-2 hover:text-text"
 				>Stats</a
 			>
-			<a href="/home" class="-my-1.5 py-1.5 text-text-muted hover:text-text-2">← Home</a>
-		</nav>
-	</header>
+		{/snippet}
+	</PageHeader>
 
 	{#if data.account}
 		<div class="mb-6 flex items-center gap-2 text-sm">

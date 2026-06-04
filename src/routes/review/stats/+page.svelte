@@ -10,6 +10,7 @@
 	import LineChart from '$lib/review/charts/LineChart.svelte';
 	import BarChart from '$lib/review/charts/BarChart.svelte';
 	import SegmentedBar from '$lib/review/charts/SegmentedBar.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 	import { C, RECORD_COLOR, CLASS_COLOR, winRateColor } from '$lib/review/charts/palette';
 	import { windowTrend, recentMean } from '$lib/review/stats/trend';
 
@@ -175,12 +176,7 @@
 
 <div class="min-h-dvh" style="background: var(--bg);">
 	<main class="mx-auto max-w-4xl px-4 py-8">
-		<header class="mb-6 flex items-baseline justify-between gap-4">
-			<h1 class="text-3xl font-bold tracking-tight" style="color: {C.ink};">Stats</h1>
-			<a href="/review" class="-my-1.5 py-1.5 text-sm font-medium" style="color: {C.muted};"
-				>← Games</a
-			>
-		</header>
+		<PageHeader title="Stats" back={{ href: '/review', label: 'Games' }} />
 
 		{#if data.accounts.length === 0}
 			<p style="color: {C.body};">

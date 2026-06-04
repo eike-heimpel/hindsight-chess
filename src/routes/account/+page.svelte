@@ -3,6 +3,7 @@
 	 * Static internal nav links; resolve() adds noise without value here (same
 	 * posture as the other route files). */
 	import ConnectProfile from '$lib/review/ConnectProfile.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 	import type { PageData, ActionData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -25,14 +26,12 @@
 <svelte:head><title>Your accounts · Hindsight</title></svelte:head>
 
 <main class="mx-auto min-h-dvh max-w-2xl px-5 py-8">
-	<header class="mb-6 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
-		<h1 class="text-2xl font-bold text-text">Your accounts</h1>
-		<nav class="flex items-center gap-4 text-sm">
+	<PageHeader title="Your accounts" back={{ href: '/home', label: 'Home' }}>
+		{#snippet actions()}
 			<a href="/review" class="-my-1.5 py-1.5 font-medium text-text-2 hover:text-text">Your games</a
 			>
-			<a href="/home" class="-my-1.5 py-1.5 text-text-muted hover:text-text-2">← Home</a>
-		</nav>
-	</header>
+		{/snippet}
+	</PageHeader>
 
 	{#if form?.message}
 		<p

@@ -17,6 +17,7 @@
 	import RecencyFilter from '$lib/review/RecencyFilter.svelte';
 	import { withinWindow, RECENCY_DEFAULT, type RecencyWindow } from '$lib/review/recency';
 	import { C, CLASS_COLOR } from '$lib/review/charts/palette';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -117,17 +118,10 @@
 
 <div class="min-h-dvh" style="background: var(--bg);">
 	<main class="mx-auto max-w-4xl px-4 py-8">
-		<header class="mb-2 flex items-baseline justify-between gap-4">
-			<h1 class="text-3xl font-bold tracking-tight" style="color: {C.ink};">Winnable losses</h1>
-			<a href="/review/stats" class="-my-1.5 py-1.5 text-sm font-medium" style="color: {C.muted};"
-				>← Stats</a
-			>
-		</header>
+		<PageHeader title="Winnable losses" back={{ href: '/review/stats', label: 'Stats' }} />
 		<p class="mb-6 max-w-2xl text-sm leading-relaxed" style="color: {C.body};">
-			Games you were clearly winning and didn't close out. A position only counts if you
-			<strong>held</strong> the advantage across several of your own moves — a one-move engine spike (the
-			mate-in-12 you'd never find over the board) doesn't qualify. The marked point on each curve is where
-			you gave it back.
+			Games you were clearly winning and didn't close out. The marked point on each curve is where
+			it slipped.
 		</p>
 
 		{#if data.accounts.length === 0}
