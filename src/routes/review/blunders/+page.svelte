@@ -11,6 +11,8 @@
 	import RecencyFilter from '$lib/review/RecencyFilter.svelte';
 	import { withinWindow, RECENCY_DEFAULT, type RecencyWindow } from '$lib/review/recency';
 	import { C } from '$lib/review/charts/palette';
+	import PageHeader from '$lib/components/PageHeader.svelte';
+	import Disclosure from '$lib/components/Disclosure.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -126,14 +128,9 @@
 
 <div class="min-h-dvh" style="background: var(--bg);">
 	<main class="mx-auto max-w-4xl px-4 py-8">
-		<header class="mb-2 flex items-baseline justify-between gap-4">
-			<h1 class="text-3xl font-bold tracking-tight" style="color: {C.ink};">Blunder trainer</h1>
-			<a href="/review/stats" class="text-sm font-medium" style="color: {C.muted};">← Stats</a>
-		</header>
+		<PageHeader title="Blunder trainer" back={{ href: '/review/stats', label: 'Stats' }} />
 		<p class="mb-6 max-w-2xl text-sm leading-relaxed" style="color: {C.body};">
-			Every blunder you played, worst first, on a board. The move you played is highlighted; the
-			arrow is the engine's better move. Step through with <kbd>←</kbd> / <kbd>→</kbd>, and
-			<strong>Explain</strong> for a grounded breakdown of what went wrong.
+			Your blunders, worst first — what you played, the better move, and why.
 		</p>
 
 		{#if data.accounts.length === 0}
@@ -186,7 +183,7 @@
 							href="/review/{current.source}/{current.gameId}?orient={current.side === 'w'
 								? 'white'
 								: 'black'}&ply={current.ply}"
-							class="text-sm font-medium"
+							class="-my-1.5 py-1.5 text-sm font-medium"
 							style="color: {C.rating};">Open in full replay →</a
 						>
 					</div>
@@ -203,56 +200,64 @@
 							opponentArrow={uciSquares(current.bestMoveUci)}
 						/>
 
+						<!-- Words first: the plain verdict + the explain pathway lead; the
+						     raw numbers are a deliberate second layer (remembered choice). -->
 						<div class="flex flex-col gap-4">
-							<div>
-								<div class="eyebrow mb-1">Move {current.moveNumber}</div>
-								<div class="text-2xl font-bold tabular-nums" style="color: {C.bad};">
-									{current.san}
-								</div>
-							</div>
+							<p class="text-base leading-relaxed" style="color: {C.body};">
+								You played <strong style="color: {C.bad};">{current.san}</strong>. The engine
+								preferred <strong style="color: {C.good};">{current.bestMoveSan}</strong>.
+							</p>
+							<p class="-mt-2 text-sm" style="color: {C.muted};">
+								Cost you about {Math.round(current.winBefore - current.winAfter)}% of your winning
+								chances.
+							</p>
 
 							<div>
-								<div class="eyebrow mb-1">Win % swing (your POV)</div>
-								<div class="text-lg font-semibold tabular-nums" style="color: {C.ink};">
-									{Math.round(current.winBefore)}% →
-									<span style="color: {C.bad};">{Math.round(current.winAfter)}%</span>
-									<span class="text-sm" style="color: {C.muted};"
-										>(−{Math.round(current.winBefore - current.winAfter)})</span
+								{#if currentExplain?.text}
+									<div class="explain">{currentExplain.text}</div>
+								{:else if currentExplain?.loading}
+									<button class="btn" disabled>
+										Analyzing the position…{#if currentExplain.progress}
+											({currentExplain.progress.done}/{currentExplain.progress.total}){/if}
+									</button>
+								{:else}
+									<button class="btn" onclick={() => explain(current)}
+										>Explain what went wrong</button
 									>
-								</div>
+									{#if currentExplain?.error}<span class="ml-2 text-xs" style="color: {C.bad};"
+											>{currentExplain.error}</span
+										>{/if}
+								{/if}
 							</div>
 
-							<div>
-								<div class="eyebrow mb-1">Better</div>
-								<div class="text-lg font-semibold tabular-nums" style="color: {C.good};">
-									{current.bestMoveSan}
+							<Disclosure
+								storageKey="review:details"
+								showLabel="Show the numbers"
+								hideLabel="Hide the numbers"
+							>
+								<div class="flex flex-col gap-3">
+									<div>
+										<div class="eyebrow mb-1">Move</div>
+										<div class="text-lg font-semibold tabular-nums" style="color: {C.ink};">
+											{current.moveNumber}. {current.san}
+										</div>
+									</div>
+									<div>
+										<div class="eyebrow mb-1">Win % (your POV)</div>
+										<div class="text-lg font-semibold tabular-nums" style="color: {C.ink};">
+											{Math.round(current.winBefore)}% →
+											<span style="color: {C.bad};">{Math.round(current.winAfter)}%</span>
+										</div>
+									</div>
+									{#if current.opening}
+										<div>
+											<div class="eyebrow mb-1">Opening</div>
+											<div class="text-sm" style="color: {C.body};">{current.opening}</div>
+										</div>
+									{/if}
 								</div>
-							</div>
-
-							{#if current.opening}
-								<div>
-									<div class="eyebrow mb-1">Opening</div>
-									<div class="text-sm" style="color: {C.body};">{current.opening}</div>
-								</div>
-							{/if}
+							</Disclosure>
 						</div>
-					</div>
-
-					<!-- Explain -->
-					<div class="mt-4">
-						{#if currentExplain?.text}
-							<div class="explain">{currentExplain.text}</div>
-						{:else if currentExplain?.loading}
-							<button class="btn" disabled>
-								Analyzing the position…{#if currentExplain.progress}
-									({currentExplain.progress.done}/{currentExplain.progress.total}){/if}
-							</button>
-						{:else}
-							<button class="btn" onclick={() => explain(current)}>Explain what went wrong</button>
-							{#if currentExplain?.error}<span class="ml-2 text-xs" style="color: {C.bad};"
-									>{currentExplain.error}</span
-								>{/if}
-						{/if}
 					</div>
 
 					<!-- Navigation -->
@@ -289,15 +294,6 @@
 	.muted {
 		font-size: 0.875rem;
 		color: var(--text-muted);
-	}
-	kbd {
-		border-radius: 0.3rem;
-		border: 1px solid var(--border-strong);
-		background: var(--surface-1);
-		padding: 0.05rem 0.35rem;
-		font-size: 0.75rem;
-		font-weight: 600;
-		color: var(--text-2);
 	}
 
 	/* Scrolls internally rather than overflowing the viewport on narrow phones. */
@@ -368,6 +364,16 @@
 	.btn:disabled {
 		cursor: default;
 		opacity: 0.4;
+	}
+
+	/* Roomier tap targets on touch devices; desktop keeps the compact controls. */
+	@media (pointer: coarse) {
+		.seg {
+			min-height: 2.5rem;
+		}
+		.btn {
+			min-height: 2.75rem;
+		}
 	}
 
 	.explain {

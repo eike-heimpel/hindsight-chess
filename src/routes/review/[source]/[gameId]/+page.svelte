@@ -11,6 +11,8 @@
 	import { uciSquares, type GameAnalysis, type MoveAnalysis } from '$lib/review/analysis';
 	import type { MoveClass } from '$lib/review/classify';
 	import { C, CLASS_COLOR } from '$lib/review/charts/palette';
+	import BackLink from '$lib/components/BackLink.svelte';
+	import Disclosure from '$lib/components/Disclosure.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -215,24 +217,20 @@
 <div class="min-h-dvh" style="background: var(--bg);">
 	<main class="mx-auto max-w-6xl px-4 py-5">
 		<header class="mb-4">
+			<div class="mb-1">
+				<BackLink href="/review{data.me ? `?user=${data.me}` : ''}" label="Games" />
+			</div>
 			<div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-				<h1 class="text-2xl font-bold tracking-tight" style="color: {C.ink};">
+				<h1 class="font-display text-2xl font-semibold tracking-tight" style="color: {C.ink};">
 					{game.white.username}<span class="px-1.5 font-normal" style="color: {C.muted};">vs</span
 					>{game.black.username}
 					<span class="ml-1.5 text-lg font-semibold tabular-nums" style="color: {C.muted};"
 						>{resultLabel}</span
 					>
 				</h1>
-				<div class="flex items-baseline gap-4">
-					{#if analysis}
-						<span class="chip-meta">Analyzed · depth {analysis.depth}</span>
-					{/if}
-					<a
-						href="/review{data.me ? `?user=${data.me}` : ''}"
-						class="text-sm font-medium transition-colors"
-						style="color: {C.muted};">← Games</a
-					>
-				</div>
+				{#if analysis}
+					<span class="chip-meta">Analyzed · depth {analysis.depth}</span>
+				{/if}
 			</div>
 			<p class="mt-0.5 text-sm" style="color: {C.muted};">
 				{game.opening ?? 'Unknown opening'} · <span class="capitalize">{game.timeClass}</span>
@@ -396,45 +394,54 @@
 					</div>
 				{/if}
 
-				<div class="card movelist min-h-0 flex-1 overflow-y-auto !p-1.5">
-					<ol>
-						{#each pairs as pair (pair.no)}
-							{@const wColor = pair.white ? dotColor(pair.white.ply) : null}
-							{@const bColor = pair.black ? dotColor(pair.black.ply) : null}
-							<li class="grid grid-cols-[1.75rem_1fr_1fr] items-center">
-								<span class="pr-1 text-right text-xs tabular-nums" style="color: {C.muted};"
-									>{pair.no}.</span
-								>
-								{#if pair.white}
-									<button
-										class="move {ply === pair.white.ply ? 'move-active' : ''}"
-										onclick={() => goTo(pair.white!.ply)}
+				<!-- The notation table is the second layer: the transport controls under
+				     the board drive navigation, so this only hides the move *list*, never
+				     the ability to step through the game. Remembered across visits. -->
+				<Disclosure
+					storageKey="review:details"
+					showLabel="Show the moves"
+					hideLabel="Hide the moves"
+				>
+					<div class="card movelist max-h-[60svh] overflow-y-auto !p-1.5">
+						<ol>
+							{#each pairs as pair (pair.no)}
+								{@const wColor = pair.white ? dotColor(pair.white.ply) : null}
+								{@const bColor = pair.black ? dotColor(pair.black.ply) : null}
+								<li class="grid grid-cols-[1.75rem_1fr_1fr] items-center">
+									<span class="pr-1 text-right text-xs tabular-nums" style="color: {C.muted};"
+										>{pair.no}.</span
 									>
-										{#if wColor}<span
-												class="mr-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full"
-												style="background: {wColor};"
-											></span>{/if}{pair.white.san}
-									</button>
-								{:else}
-									<span></span>
-								{/if}
-								{#if pair.black}
-									<button
-										class="move {ply === pair.black.ply ? 'move-active' : ''}"
-										onclick={() => goTo(pair.black!.ply)}
-									>
-										{#if bColor}<span
-												class="mr-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full"
-												style="background: {bColor};"
-											></span>{/if}{pair.black.san}
-									</button>
-								{:else}
-									<span></span>
-								{/if}
-							</li>
-						{/each}
-					</ol>
-				</div>
+									{#if pair.white}
+										<button
+											class="move {ply === pair.white.ply ? 'move-active' : ''}"
+											onclick={() => goTo(pair.white!.ply)}
+										>
+											{#if wColor}<span
+													class="mr-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+													style="background: {wColor};"
+												></span>{/if}{pair.white.san}
+										</button>
+									{:else}
+										<span></span>
+									{/if}
+									{#if pair.black}
+										<button
+											class="move {ply === pair.black.ply ? 'move-active' : ''}"
+											onclick={() => goTo(pair.black!.ply)}
+										>
+											{#if bColor}<span
+													class="mr-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+													style="background: {bColor};"
+												></span>{/if}{pair.black.san}
+										</button>
+									{:else}
+										<span></span>
+									{/if}
+								</li>
+							{/each}
+						</ol>
+					</div>
+				</Disclosure>
 			</aside>
 		</div>
 	</main>
@@ -567,6 +574,9 @@
 		.ctrl-solo {
 			height: 2.75rem;
 			width: 2.75rem;
+		}
+		.btn {
+			min-height: 2.75rem;
 		}
 	}
 

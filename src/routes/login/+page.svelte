@@ -78,12 +78,12 @@
 				required
 				placeholder="you@example.com"
 				autocomplete="email"
-				class="rounded-lg border border-border bg-surface-1 px-3 py-2 text-text focus:border-border-strong focus:outline-none"
+				class="rounded-lg border border-border bg-surface-1 px-3 py-2.5 text-text focus:border-border-strong focus:outline-none"
 			/>
 			<button
 				type="submit"
 				disabled={status === 'sending'}
-				class="rounded-lg bg-brand px-4 py-2 font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+				class="rounded-lg bg-brand px-4 py-2.5 font-medium text-white hover:bg-brand-hover disabled:opacity-60"
 			>
 				{status === 'sending' ? 'Sending…' : 'Send magic link'}
 			</button>

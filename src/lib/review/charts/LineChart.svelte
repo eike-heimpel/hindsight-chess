@@ -1,15 +1,16 @@
 <script lang="ts">
 	/**
-	 * Minimal sparkline for per-game trends. No axes, no gridlines — just the
-	 * shape, a soft gradient fill, and (optionally) the min / max value labelled
-	 * at the bottom / top edge. Pointer/tap reveals a tooltip (tablet-first).
+	 * Sparkline for per-game trends: the shape, a soft gradient fill, and either
+	 * bare min/max endpoint labels or — with `axis` — a labelled y-scale (faint
+	 * gridlines + "nice" tick values, with headroom so noise reads against a scale
+	 * instead of as a mountain). Pointer/tap reveals a tooltip (tablet-first).
 	 *
 	 * For noisy per-game stats, pass `smoothWindow`: the raw series is drawn faint
 	 * and a centered moving-average trend line takes the foreground, so "am I
 	 * improving?" is legible instead of buried in the jitter. The big "current
 	 * value + delta" readout lives in the *card* around this.
 	 */
-	import { linear, smoothPath, polyline, movingAverage } from './scale';
+	import { linear, smoothPath, polyline, movingAverage, ticks } from './scale';
 	import { C } from './palette';
 
 	type Point = { label: string; value: number };
@@ -25,7 +26,11 @@
 		straight = false,
 		mark,
 		markColor = C.bad,
-		threshold
+		threshold,
+		axis = false,
+		legend = false,
+		rawLabel = 'per game',
+		trendLabel = 'trend'
 	}: {
 		series: Point[];
 		color?: string;
@@ -34,6 +39,15 @@
 		unit?: string;
 		/** Label the lowest value at the bottom edge and highest at the top. */
 		endpoints?: boolean;
+		/** Draw a labelled y-scale: faint gridlines + value labels at "nice" ticks,
+		 *  with headroom so a noisy series reads against a scale instead of as a
+		 *  full-height mountain. Replaces the bare `endpoints` labels. */
+		axis?: boolean;
+		/** Show a legend distinguishing the bold smoothed trend from the faint raw
+		 *  per-game line. Only meaningful with `smoothWindow`. */
+		legend?: boolean;
+		rawLabel?: string;
+		trendLabel?: string;
 		/** When set, foreground a centered moving-average of this window and draw
 		 *  the raw series faintly behind it. */
 		smoothWindow?: number;
@@ -51,12 +65,20 @@
 
 	const W = 600;
 	const H = 180;
-	const PAD = { top: 18, right: 10, bottom: 18, left: 10 };
+	// The axis labels live in a left gutter; without them the chart runs edge-to-edge.
+	const PAD = $derived({ top: 18, right: 10, bottom: 18, left: axis ? 52 : 10 });
 
 	const values = $derived(series.map((p) => p.value));
-	const lo = $derived(yMin ?? Math.min(...values));
-	const hiRaw = $derived(yMax ?? Math.max(...values));
-	const hi = $derived(hiRaw > lo ? hiRaw : lo + 1);
+	const dataLo = $derived(yMin ?? Math.min(...values));
+	const dataHiRaw = $derived(yMax ?? Math.max(...values));
+	const dataHi = $derived(dataHiRaw > dataLo ? dataHiRaw : dataLo + 1);
+
+	// With a labelled scale, pad the domain (where not explicitly pinned) so the
+	// line sits in the middle of the frame — a measured trend, not a mountain.
+	const PAD_FRAC = 0.15;
+	const lo = $derived(axis && yMin == null ? dataLo - (dataHi - dataLo) * PAD_FRAC : dataLo);
+	const hi = $derived(axis && yMax == null ? dataHi + (dataHi - dataLo) * PAD_FRAC : dataHi);
+	const axisTicks = $derived(axis ? ticks(lo, hi, 3) : []);
 
 	const sx = $derived(linear([0, Math.max(1, series.length - 1)], [PAD.left, W - PAD.right]));
 	const sy = $derived(linear([lo, hi], [H - PAD.bottom, PAD.top]));
@@ -100,6 +122,12 @@
 				<stop offset="100%" stop-color={color} stop-opacity="0" />
 			</linearGradient>
 		</defs>
+
+		{#if axis}
+			{#each axisTicks as tv (tv)}
+				<line x1={PAD.left} y1={sy(tv)} x2={W - PAD.right} y2={sy(tv)} class="grid" />
+			{/each}
+		{/if}
 
 		{#if threshold != null && threshold >= lo && threshold <= hi}
 			<line
@@ -179,9 +207,25 @@
 		{/if}
 	</svg>
 
-	{#if endpoints && pts.length > 1}
+	{#if axis}
+		{#each axisTicks as tv (tv)}
+			<span class="axis-label" style="top: {(sy(tv) / H) * 100}%; color: {C.muted};">{fmt(tv)}</span
+			>
+		{/each}
+	{:else if endpoints && pts.length > 1}
 		<span class="endpoint top-0" style="color: {C.muted};">{fmt(hi)}</span>
 		<span class="endpoint bottom-0" style="color: {C.muted};">{fmt(lo)}</span>
+	{/if}
+
+	{#if legend && smoothWindow}
+		<div class="legend">
+			<span class="legend-item">
+				<span class="legend-line" style="background: {color};"></span>{trendLabel}
+			</span>
+			<span class="legend-item">
+				<span class="legend-line faint" style="background: {color};"></span>{rawLabel}
+			</span>
+		</div>
 	{/if}
 
 	<div
@@ -214,6 +258,46 @@
 		stroke: var(--border-strong);
 		stroke-width: 1;
 		stroke-dasharray: 4 4;
+	}
+	.grid {
+		stroke: var(--border);
+		stroke-width: 1;
+		stroke-opacity: 0.7;
+	}
+	.axis-label {
+		position: absolute;
+		left: 0;
+		transform: translateY(-50%);
+		font-size: 0.7rem;
+		font-weight: 500;
+		font-variant-numeric: tabular-nums;
+		line-height: 1;
+		pointer-events: none;
+	}
+	.legend {
+		position: absolute;
+		top: 0;
+		right: 0;
+		display: flex;
+		gap: 0.6rem;
+		pointer-events: none;
+	}
+	.legend-item {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		font-size: 0.7rem;
+		font-weight: 500;
+		color: var(--text-muted);
+	}
+	.legend-line {
+		display: inline-block;
+		width: 0.7rem;
+		height: 0.15rem;
+		border-radius: 9999px;
+	}
+	.legend-line.faint {
+		opacity: 0.3;
 	}
 	.endpoint {
 		position: absolute;

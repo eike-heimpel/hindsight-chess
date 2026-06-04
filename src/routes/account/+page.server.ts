@@ -7,7 +7,8 @@ import {
 } from '$lib/server/auth';
 import { sourceFor, IMPORTABLE_SOURCES } from '$lib/review/sources';
 import { normalize } from '$lib/review/normalize';
-import { countGamesForAccount, listStoredGameIds, upsertGames } from '$lib/server/reviewGames';
+import { listGamesForAccounts, listStoredGameIds, upsertGames } from '$lib/server/reviewGames';
+import { getAnalysesByIds } from '$lib/server/reviewAnalysis';
 import { lastSyncedAt } from '$lib/server/reviewSync';
 import { linkAccount } from '$lib/server/reviewLink';
 import { accountKey, type ReviewAccount, type ReviewSource } from '$lib/review/types';
@@ -65,12 +66,23 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const activeKey = user.activeAccount ? accountKey(user.activeAccount) : null;
 
 	const accounts = await Promise.all(
-		user.reviewAccounts.map(async (account) => ({
-			account,
-			active: accountKey(account) === activeKey,
-			gamesCount: await countGamesForAccount(account),
-			lastSyncedAt: await lastSyncedAt(accountKey(account))
-		}))
+		user.reviewAccounts.map(async (account) => {
+			const games = await listGamesForAccounts([account]);
+			const analyses = await getAnalysesByIds(
+				games.map((g) => ({ source: g.source, gameId: g.gameId }))
+			);
+			const pending = games
+				.filter((g) => !analyses.has(`${g.source}:${g.gameId}`))
+				.map((g) => ({ source: g.source, gameId: g.gameId }));
+			return {
+				account,
+				active: accountKey(account) === activeKey,
+				gamesCount: games.length,
+				lastSyncedAt: await lastSyncedAt(accountKey(account)),
+				coverage: { analyzed: games.length - pending.length, total: games.length },
+				pending
+			};
+		})
 	);
 
 	const syncedParam = url.searchParams.get('synced');

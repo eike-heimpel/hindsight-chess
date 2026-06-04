@@ -56,3 +56,6 @@ npm-debug.log*
 # (settings.json, agents/) but ignore per-machine state files.
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+# Local mobile screenshot output (scripts/shots.mjs)
+shots/

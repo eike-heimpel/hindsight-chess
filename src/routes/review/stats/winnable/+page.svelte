@@ -17,6 +17,8 @@
 	import RecencyFilter from '$lib/review/RecencyFilter.svelte';
 	import { withinWindow, RECENCY_DEFAULT, type RecencyWindow } from '$lib/review/recency';
 	import { C, CLASS_COLOR } from '$lib/review/charts/palette';
+	import PageHeader from '$lib/components/PageHeader.svelte';
+	import Disclosure from '$lib/components/Disclosure.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -60,6 +62,9 @@
 	const thrownCount = $derived(rows.filter((r) => r.v.tier === 'thrown').length);
 	const outplayedCount = $derived(rows.length - thrownCount);
 	const filtered = $derived(candidates.length - rows.length);
+	// Denominator for "N of M": every game in this class I didn't win — the pool
+	// these winnable losses came out of.
+	const notWon = $derived((cur?.record.loss ?? 0) + (cur?.record.draw ?? 0));
 
 	const dateFmt = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' });
 	const short = (d: Date | string) => dateFmt.format(new Date(d));
@@ -117,15 +122,10 @@
 
 <div class="min-h-dvh" style="background: var(--bg);">
 	<main class="mx-auto max-w-4xl px-4 py-8">
-		<header class="mb-2 flex items-baseline justify-between gap-4">
-			<h1 class="text-3xl font-bold tracking-tight" style="color: {C.ink};">Winnable losses</h1>
-			<a href="/review/stats" class="text-sm font-medium" style="color: {C.muted};">← Stats</a>
-		</header>
+		<PageHeader title="Winnable losses" back={{ href: '/review/stats', label: 'Stats' }} />
 		<p class="mb-6 max-w-2xl text-sm leading-relaxed" style="color: {C.body};">
-			Games you were clearly winning and didn't close out. A position only counts if you
-			<strong>held</strong> the advantage across several of your own moves — a one-move engine spike (the
-			mate-in-12 you'd never find over the board) doesn't qualify. The marked point on each curve is where
-			you gave it back.
+			Games you were clearly winning and didn't close out. The marked point on each curve is where
+			it slipped.
 		</p>
 
 		{#if data.accounts.length === 0}
@@ -157,66 +157,79 @@
 				{/each}
 			</div>
 
-			<!-- Levers -->
-			<section class="card mb-5">
-				<div class="grid gap-4 sm:grid-cols-3">
+			<!-- Headline: the count + the pool it came out of -->
+			<section class="card mb-4">
+				<div class="flex flex-wrap items-end gap-x-8 gap-y-3">
 					<div>
-						<div class="eyebrow mb-1.5">Clearly winning ≥</div>
-						<div class="pills">
-							{#each FLOORS as f (f)}
-								<button class="pill {floor === f ? 'pill-on' : ''}" onclick={() => (floor = f)}
-									>{f}%</button
-								>
-							{/each}
+						<div class="eyebrow mb-1">Winnable losses</div>
+						<div class="num-xl" style="color: {rows.length ? C.bad : C.good};">{rows.length}</div>
+						<div class="mt-0.5 text-sm" style="color: {C.muted};">
+							of {notWon} game{notWon === 1 ? '' : 's'} you didn't win
 						</div>
 					</div>
-					<div>
-						<div class="eyebrow mb-1.5">Held for ≥</div>
-						<div class="pills">
-							{#each SUSTAINS as k (k)}
-								<button class="pill {sustain === k ? 'pill-on' : ''}" onclick={() => (sustain = k)}
-									>{k} moves</button
-								>
-							{/each}
+					<div class="flex gap-4 pb-1 text-sm sm:gap-6">
+						<div>
+							<div class="num-md" style="color: {C.bad};">{thrownCount}</div>
+							<div class="whitespace-nowrap" style="color: {C.muted};">thrown away</div>
 						</div>
-					</div>
-					<div>
-						<div class="eyebrow mb-1.5">Material edge <span class="opt">optional</span></div>
-						<div class="pills">
-							{#each MATERIALS as m, i (m.label)}
-								<button
-									class="pill {materialIdx === i ? 'pill-on' : ''}"
-									onclick={() => (materialIdx = i)}>{m.label}</button
-								>
-							{/each}
+						<div>
+							<div class="num-md" style="color: var(--warn);">{outplayedCount}</div>
+							<div class="whitespace-nowrap" style="color: {C.muted};">outplayed late</div>
+						</div>
+						<div>
+							<div class="num-md" style="color: {C.muted};">{filtered}</div>
+							<div class="whitespace-nowrap" style="color: {C.muted};">too brief to count</div>
 						</div>
 					</div>
 				</div>
 			</section>
 
-			<!-- Headline -->
-			<section class="card mb-5">
-				<div class="flex flex-wrap items-end gap-x-8 gap-y-3">
-					<div>
-						<div class="eyebrow mb-1">Winnable losses</div>
-						<div class="num-xl" style="color: {rows.length ? C.bad : C.good};">{rows.length}</div>
-					</div>
-					<div class="flex gap-6 pb-1 text-sm">
-						<div>
-							<div class="num-md" style="color: {C.bad};">{thrownCount}</div>
-							<div style="color: {C.muted};">thrown away</div>
+			<!-- Filters collapsed so the screen opens calm; the defaults already pick
+			     out the real ones. -->
+			<div class="mb-5">
+				<Disclosure
+					storageKey="review:winnable-filters"
+					showLabel="Filters"
+					hideLabel="Hide filters"
+				>
+					<section class="card">
+						<div class="grid gap-4 sm:grid-cols-3">
+							<div>
+								<div class="eyebrow mb-1.5">Clearly winning ≥</div>
+								<div class="pills">
+									{#each FLOORS as f (f)}
+										<button class="pill {floor === f ? 'pill-on' : ''}" onclick={() => (floor = f)}
+											>{f}%</button
+										>
+									{/each}
+								</div>
+							</div>
+							<div>
+								<div class="eyebrow mb-1.5">Held for ≥</div>
+								<div class="pills">
+									{#each SUSTAINS as k (k)}
+										<button
+											class="pill {sustain === k ? 'pill-on' : ''}"
+											onclick={() => (sustain = k)}>{k} moves</button
+										>
+									{/each}
+								</div>
+							</div>
+							<div>
+								<div class="eyebrow mb-1.5">Material edge <span class="opt">optional</span></div>
+								<div class="pills">
+									{#each MATERIALS as m, i (m.label)}
+										<button
+											class="pill {materialIdx === i ? 'pill-on' : ''}"
+											onclick={() => (materialIdx = i)}>{m.label}</button
+										>
+									{/each}
+								</div>
+							</div>
 						</div>
-						<div>
-							<div class="num-md" style="color: var(--warn);">{outplayedCount}</div>
-							<div style="color: {C.muted};">out-resourced</div>
-						</div>
-						<div>
-							<div class="num-md" style="color: {C.muted};">{filtered}</div>
-							<div style="color: {C.muted};">spikes filtered</div>
-						</div>
-					</div>
-				</div>
-			</section>
+					</section>
+				</Disclosure>
+			</div>
 
 			<!-- Cards -->
 			{#if rows.length === 0}
@@ -235,10 +248,10 @@
 							<div class="mb-2 flex flex-wrap items-center justify-between gap-2">
 								<div class="flex items-center gap-2">
 									<span class="tier {v.tier}"
-										>{v.tier === 'thrown' ? 'Thrown away' : 'Out-resourced'}</span
+										>{v.tier === 'thrown' ? 'Thrown away' : 'Outplayed late'}</span
 									>
 									<span class="font-semibold" style="color: {C.ink};">vs {c.opponent}</span>
-									<span class="text-sm" style="color: {C.muted};"
+									<span class="whitespace-nowrap text-sm" style="color: {C.muted};"
 										>· {short(c.playedAt)} · {c.outcome === 'loss' ? 'lost' : 'drew'}</span
 									>
 								</div>
@@ -246,7 +259,7 @@
 									href="/review/{c.source}/{c.gameId}?orient={c.side === 'w'
 										? 'white'
 										: 'black'}{v.giveBack ? `&ply=${v.giveBack.ply}` : ''}"
-									class="text-sm font-medium"
+									class="-my-1.5 py-1.5 text-sm font-medium"
 									style="color: {C.rating};">{v.giveBack ? 'Replay from the slip →' : 'Replay →'}</a
 								>
 							</div>
@@ -329,14 +342,16 @@
 		color: var(--text-muted);
 	}
 	.num-xl {
+		font-family: var(--font-display);
 		font-size: 2.75rem;
-		font-weight: 700;
+		font-weight: 600;
 		line-height: 1;
 		font-variant-numeric: tabular-nums;
 	}
 	.num-md {
-		font-size: 1.25rem;
-		font-weight: 700;
+		font-family: var(--font-display);
+		font-size: 1.4rem;
+		font-weight: 600;
 		line-height: 1.1;
 		font-variant-numeric: tabular-nums;
 	}
@@ -410,6 +425,8 @@
 	}
 
 	.tier {
+		flex-shrink: 0;
+		white-space: nowrap;
 		border-radius: 9999px;
 		padding: 0.15rem 0.6rem;
 		font-size: 0.7rem;
@@ -442,6 +459,20 @@
 	.btn:disabled {
 		cursor: default;
 		opacity: 0.6;
+	}
+
+	/* Roomier tap targets on touch devices; desktop keeps the compact controls. */
+	@media (pointer: coarse) {
+		.seg {
+			min-height: 2.5rem;
+		}
+		.btn {
+			min-height: 2.75rem;
+		}
+		.pill {
+			min-height: 2.5rem;
+			padding: 0.5rem 0.9rem;
+		}
 	}
 
 	.explain {

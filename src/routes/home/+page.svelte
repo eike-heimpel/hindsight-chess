@@ -232,7 +232,7 @@
 <svelte:window onkeydown={onKey} />
 
 <div class="glow">
-	<main class="mx-auto max-w-2xl px-5 pt-10 pb-16">
+	<main class="mx-auto max-w-2xl px-5 pt-10 pb-10">
 		<header class="mb-9">
 			<h1 class="font-display text-3xl font-semibold tracking-tight text-text">
 				{greeting}{#if displayName}, {displayName}{/if}.
@@ -288,7 +288,7 @@
 									onclick={newer}
 									disabled={index === 0}
 									aria-label="Newer game"
-									class="rounded-md px-1 text-lg leading-none text-text-muted transition-colors hover:text-text disabled:opacity-30 disabled:hover:text-text-muted"
+									class="inline-flex items-center justify-center rounded-md px-2 text-lg leading-none text-text-muted transition-colors hover:text-text disabled:opacity-30 disabled:hover:text-text-muted pointer-coarse:size-10"
 									>‹</button
 								>
 								<span class="text-xs text-text-muted tabular-nums"
@@ -299,7 +299,7 @@
 									onclick={older}
 									disabled={index === recents.length - 1}
 									aria-label="Older game"
-									class="rounded-md px-1 text-lg leading-none text-text-muted transition-colors hover:text-text disabled:opacity-30 disabled:hover:text-text-muted"
+									class="inline-flex items-center justify-center rounded-md px-2 text-lg leading-none text-text-muted transition-colors hover:text-text disabled:opacity-30 disabled:hover:text-text-muted pointer-coarse:size-10"
 									>›</button
 								>
 							</div>
@@ -317,7 +317,7 @@
 				<p class="mt-1 mb-4 text-base text-text-2">Pull your history and your home fills up.</p>
 				<a
 					href="/account"
-					class="inline-block rounded-lg bg-brand px-4 py-2 font-medium text-white hover:bg-brand-hover"
+					class="inline-block rounded-lg bg-brand px-4 py-2.5 font-medium text-white hover:bg-brand-hover"
 					>Sync your games</a
 				>
 			</section>
@@ -333,7 +333,7 @@
 					<div class="mt-1 text-xs text-text-muted">games this week</div>
 				</div>
 				<div class="rounded-lg border border-border bg-surface-1 p-4">
-					<div class="text-2xl font-semibold whitespace-nowrap text-text tabular-nums">
+					<div class="truncate text-2xl font-semibold text-text tabular-nums">
 						{#if hasForm}{form.win}<span class="mx-1.5 text-text-muted">–</span>{form.draw}<span
 								class="mx-1.5 text-text-muted">–</span
 							>{form.loss}{:else}—{/if}
@@ -367,13 +367,15 @@
 			</section>
 		{/if}
 
-		<footer class="mt-10 flex items-center justify-between text-xs text-text-muted">
+		<footer class="mt-10 flex items-center justify-between gap-3 text-xs text-text-muted">
 			{#if data.account}
-				<span>Signed in as {data.account}</span>
+				<span class="min-w-0 truncate">Signed in as {data.account}</span>
 			{:else}
 				<span></span>
 			{/if}
-			<a href="/account" class="hover:text-text-2">Manage accounts</a>
+			<a href="/account" class="-my-1.5 shrink-0 py-1.5 whitespace-nowrap hover:text-text-2"
+				>Manage accounts</a
+			>
 		</footer>
 	</main>
 </div>

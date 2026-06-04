@@ -129,10 +129,11 @@ pending game via `GET /api/review/game/[source]/[gameId]`, runs the same
 game failing is reported, not hidden.
 
 **Charts are hand-built (`src/lib/review/charts/`), no library.** `LineChart`
-(SVG sparkline — smoothed path + gradient fill, no axes; just min/max endpoint
-labels, with a pointer/tap tooltip) for trends; pass `smoothWindow` to foreground
-a centered moving-average of a noisy per-game series and draw the raw points
-faintly behind it. `BarChart` (optional `baseline` reference + `tone='scale'`
+(SVG sparkline — smoothed path + gradient fill, with a pointer/tap tooltip; bare
+min/max endpoint labels by default, or an opt-in labelled y-scale via `axis` —
+faint gridlines + `ticks()` labels with domain headroom — and an optional
+`legend`) for trends; pass `smoothWindow` to foreground a centered moving-average
+of a noisy per-game series and draw the raw points faintly behind it. `BarChart` (optional `baseline` reference + `tone='scale'`
 that colours win-rate bars by value) and `SegmentedBar` (pure HTML/CSS) for
 distributions and part-of-whole breakdowns. `scale.ts` holds the shared `linear`
 / `ticks` / `polyline` / `smoothPath` / `movingAverage` helpers; `palette.ts`
