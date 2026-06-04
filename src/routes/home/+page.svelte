@@ -64,6 +64,25 @@
 		else if (e.key === 'ArrowLeft') newer();
 	}
 
+	// Swipe the card left/right to flip games (mobile). Fires on release so it
+	// never steals vertical page-scroll: only a clearly-horizontal drag counts.
+	let touchX = 0;
+	let touchY = 0;
+	function onTouchStart(e: TouchEvent) {
+		if (e.touches.length !== 1) return;
+		touchX = e.touches[0].clientX;
+		touchY = e.touches[0].clientY;
+	}
+	function onTouchEnd(e: TouchEvent) {
+		if (recents.length < 2) return;
+		const t = e.changedTouches[0];
+		const dx = t.clientX - touchX;
+		const dy = t.clientY - touchY;
+		if (Math.abs(dx) < 50 || Math.abs(dx) <= Math.abs(dy)) return;
+		if (dx < 0) older();
+		else newer();
+	}
+
 	// --- Live overlay -------------------------------------------------------
 	// Server props are immutable; all live analysis/headline results live here,
 	// keyed `source:gameId`, so a re-sync that reorders `recents` never loses
@@ -400,37 +419,46 @@
 			<!-- The hook: your latest game as a plain-English recap. It comes alive on
 			     its own — auto-synced, auto-analyzed (newest first), with the win graph
 			     drawing in and the headline becoming a story. Flip back with ←/→. -->
-			<RecapCard
-				recap={view}
-				href={gameHref(view.source, view.gameId)}
-				analyzing={isAnalyzing}
-				progress={view.progress}
-				lineAttach={drawLine(currentKey ?? '', view.animateGraph)}
+			<div
+				role="group"
+				aria-roledescription="Game pager — swipe left or right to flip games"
+				ontouchstart={onTouchStart}
+				ontouchend={onTouchEnd}
 			>
-				{#snippet pager()}
-					{#if recents.length > 1}
-						<div class="flex shrink-0 items-center gap-1">
-							<button
-								type="button"
-								onclick={newer}
-								disabled={index === 0}
-								aria-label="Newer game"
-								class="rounded-md px-1 text-lg leading-none text-text-muted transition-colors hover:text-text disabled:opacity-30 disabled:hover:text-text-muted"
-								>‹</button
-							>
-							<span class="text-xs text-text-muted tabular-nums">{index + 1}/{recents.length}</span>
-							<button
-								type="button"
-								onclick={older}
-								disabled={index === recents.length - 1}
-								aria-label="Older game"
-								class="rounded-md px-1 text-lg leading-none text-text-muted transition-colors hover:text-text disabled:opacity-30 disabled:hover:text-text-muted"
-								>›</button
-							>
-						</div>
-					{/if}
-				{/snippet}
-			</RecapCard>
+				<RecapCard
+					recap={view}
+					href={gameHref(view.source, view.gameId)}
+					analyzing={isAnalyzing}
+					progress={view.progress}
+					lineAttach={drawLine(currentKey ?? '', view.animateGraph)}
+				>
+					{#snippet pager()}
+						{#if recents.length > 1}
+							<div class="flex shrink-0 items-center gap-1">
+								<button
+									type="button"
+									onclick={newer}
+									disabled={index === 0}
+									aria-label="Newer game"
+									class="rounded-md px-1 text-lg leading-none text-text-muted transition-colors hover:text-text disabled:opacity-30 disabled:hover:text-text-muted"
+									>‹</button
+								>
+								<span class="text-xs text-text-muted tabular-nums"
+									>{index + 1}/{recents.length}</span
+								>
+								<button
+									type="button"
+									onclick={older}
+									disabled={index === recents.length - 1}
+									aria-label="Older game"
+									class="rounded-md px-1 text-lg leading-none text-text-muted transition-colors hover:text-text disabled:opacity-30 disabled:hover:text-text-muted"
+									>›</button
+								>
+							</div>
+						{/if}
+					{/snippet}
+				</RecapCard>
+			</div>
 		{:else}
 			<!-- Account linked, but nothing stored yet. -->
 			<section
@@ -449,7 +477,7 @@
 
 		{#if !data.needsAccount && data.totalGames > 0}
 			<!-- Identity strip — calm, few numbers. -->
-			<section class="mt-4 grid grid-cols-3 gap-3">
+			<section class="mt-4 grid grid-cols-2 gap-3">
 				<div class="rounded-lg border border-border bg-surface-1 p-4">
 					<div class="text-2xl font-semibold text-text tabular-nums">
 						{data.summary.gamesThisWeek}
@@ -457,29 +485,13 @@
 					<div class="mt-1 text-xs text-text-muted">games this week</div>
 				</div>
 				<div class="rounded-lg border border-border bg-surface-1 p-4">
-					<div class="text-2xl font-semibold text-text tabular-nums">
-						{#if hasForm}{form.win}<span class="text-text-muted">–</span>{form.draw}<span
-								class="text-text-muted">–</span
+					<div class="text-2xl font-semibold whitespace-nowrap text-text tabular-nums">
+						{#if hasForm}{form.win}<span class="mx-1.5 text-text-muted">–</span>{form.draw}<span
+								class="mx-1.5 text-text-muted">–</span
 							>{form.loss}{:else}—{/if}
 					</div>
 					<div class="mt-1 text-xs text-text-muted">recent form (W–D–L)</div>
 				</div>
-				{#if data.summary.sharpest}
-					<a
-						href={gameHref(data.summary.sharpest.source, data.summary.sharpest.gameId)}
-						class="rounded-lg border border-border bg-surface-1 p-4 transition-colors hover:border-border-strong"
-					>
-						<div class="text-2xl font-semibold text-good tabular-nums">
-							{data.summary.sharpest.accuracy.toFixed(0)}%
-						</div>
-						<div class="mt-1 text-xs text-text-muted">sharpest this week</div>
-					</a>
-				{:else}
-					<div class="rounded-lg border border-border bg-surface-1 p-4">
-						<div class="text-2xl font-semibold text-text-muted tabular-nums">—</div>
-						<div class="mt-1 text-xs text-text-muted">sharpest this week</div>
-					</div>
-				{/if}
 			</section>
 
 			<!-- Doors into the depth. -->

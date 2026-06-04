@@ -158,13 +158,7 @@ function mockData() {
 		recents,
 		summary: {
 			gamesThisWeek: 6,
-			recentForm: { win: 7, draw: 2, loss: 3 } as Tally,
-			sharpest: {
-				accuracy: 88,
-				opponent: 'Magnus_fan',
-				source: 'chesscom',
-				gameId: 'mock-2'
-			}
+			recentForm: { win: 7, draw: 2, loss: 3 } as Tally
 		},
 		depth: { blunders: 12, winnable: 3, analyzed: 6, total: 24 }
 	};
@@ -181,8 +175,7 @@ const EMPTY = {
 	recents: [] as ReturnType<typeof recapFor>[],
 	summary: {
 		gamesThisWeek: 0,
-		recentForm: { win: 0, draw: 0, loss: 0 } as Tally,
-		sharpest: null as { accuracy: number; opponent: string; source: string; gameId: string } | null
+		recentForm: { win: 0, draw: 0, loss: 0 } as Tally
 	},
 	depth: { blunders: 0, winnable: 0, analyzed: 0, total: 0 }
 };
@@ -229,14 +222,6 @@ export const load: PageServerLoad = async ({ locals, depends, url }) => {
 	const now = Date.now();
 	const thisWeek = perspectives.filter((p) => now - p.playedAt.getTime() <= WEEK_MS);
 
-	let sharpest: typeof EMPTY.summary.sharpest = null;
-	for (const p of thisWeek) {
-		if (!p.analyzed || p.accuracy == null) continue;
-		if (!sharpest || p.accuracy > sharpest.accuracy) {
-			sharpest = { accuracy: p.accuracy, opponent: p.opponent, source: p.source, gameId: p.gameId };
-		}
-	}
-
 	const winnable = perspectives
 		.map(buildCandidate)
 		.filter((c) => c !== null)
@@ -258,8 +243,7 @@ export const load: PageServerLoad = async ({ locals, depends, url }) => {
 		recents: recents.map((p) => recapFor(p, cachedHeadlines)),
 		summary: {
 			gamesThisWeek: thisWeek.length,
-			recentForm: tally(perspectives.slice(0, FORM_WINDOW)),
-			sharpest
+			recentForm: tally(perspectives.slice(0, FORM_WINDOW))
 		},
 		depth: { blunders, winnable, analyzed, total: games.length }
 	};
