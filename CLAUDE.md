@@ -102,7 +102,9 @@ npm run calibrate:review -- <chesscom-user> [sampleSize]
 - Events are callback props (`onClick`, `onChange`) — no `createEventDispatcher`.
   Slots are `{#snippet}`/`{@render}`.
 - A route component over ~250 lines doing async orchestration extracts that into
-  a `.svelte.ts` rune module (the `home` reveal queue is the open example).
+  a `.svelte.ts` rune module — `recapQueue.svelte.ts` (the home reveal queue,
+  with an injected `RecapEngine`) is the pattern to follow; the 624-line
+  `review/[source]/[gameId]/+page.svelte` is the next candidate.
 
 ### Trust + mobile
 
