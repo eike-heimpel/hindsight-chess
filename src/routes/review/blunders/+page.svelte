@@ -46,13 +46,13 @@
 	const current = $derived<BlunderEntry | undefined>(entries[clamped]);
 
 	// Re-narrowing the recency window snaps back to the worst blunder and drops a
-	// now-empty time-class selection (recency is the coarser axis). Tracks `recency`
-	// only, so stepping through with go() doesn't retrigger it.
-	$effect(() => {
-		recency;
+	// now-empty time-class selection (recency is the coarser axis). Driven by the
+	// RecencyFilter's onChange, not an $effect — the state change belongs in the
+	// event that causes it.
+	function onRecencyChange() {
 		filter = 'all';
 		index = 0;
-	});
+	}
 
 	// Reset to the worst blunder whenever the filter narrows the queue.
 	function setFilter(f: string) {
@@ -124,7 +124,7 @@
 <svelte:head><title>Review · Blunder trainer</title></svelte:head>
 <svelte:window onkeydown={onKey} />
 
-<div class="min-h-screen" style="background: var(--bg);">
+<div class="min-h-dvh" style="background: var(--bg);">
 	<main class="mx-auto max-w-4xl px-4 py-8">
 		<header class="mb-2 flex items-baseline justify-between gap-4">
 			<h1 class="text-3xl font-bold tracking-tight" style="color: {C.ink};">Blunder trainer</h1>
@@ -149,7 +149,7 @@
 		{:else}
 			<!-- Recency window (coarser scope) -->
 			<div class="mb-3">
-				<RecencyFilter bind:value={recency} />
+				<RecencyFilter bind:value={recency} onChange={onRecencyChange} />
 			</div>
 
 			<!-- Time-class filter -->
@@ -194,6 +194,7 @@
 					<div class="grid gap-5 sm:grid-cols-[minmax(0,1fr)_18rem]">
 						<Board
 							fen={current.fenBefore}
+							interactive={false}
 							selected={null}
 							legalDestinations={[]}
 							onSquareClick={() => {}}

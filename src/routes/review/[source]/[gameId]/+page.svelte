@@ -20,6 +20,12 @@
 	const moves = $derived(game.moves);
 	const plyCount = $derived(moves.length);
 
+	// These seed once from `data` (untrack = "capture the initial value on
+	// purpose"): the page always mounts fresh per game — every in-app link to it
+	// comes from another route (the games list, blunders, winnable), never
+	// game→game on this route — so there's no stale state to reset. State changes
+	// live in the event handlers below, never in an $effect that copies `data`
+	// back into local state (a one-frame-stale antipattern).
 	// ply 0 = start position; ply k = the position after move k.
 	let ply = $state(untrack(() => data.initialPly));
 	let orientation = $state<'white' | 'black'>(untrack(() => data.orientation));
@@ -35,21 +41,6 @@
 	let explanations = $state<Record<number, string>>(untrack(() => data.explanations));
 	let explaining = $state(false);
 	let explainError = $state<string | null>(null);
-
-	// Reset the view when navigating to a different game (same route, new params).
-	$effect(() => {
-		void game.gameId;
-		ply = data.initialPly;
-		orientation = data.orientation;
-		analysis = data.analysis;
-		analyzing = false;
-		progress = { done: 0, total: 0 };
-		analyzeError = null;
-		cacheNote = null;
-		explanations = data.explanations;
-		explaining = false;
-		explainError = null;
-	});
 
 	let fen = $derived(ply === 0 ? (moves[0]?.fenBefore ?? START_FEN) : moves[ply - 1].fenAfter);
 	let lastMove = $derived.by(() => {
@@ -166,11 +157,16 @@
 			analyzeError = result.error.message;
 			return;
 		}
-		analysis = result.value;
+		analysis = result.value.analysis;
 		const res = await fetch('/api/review/analyze', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify(result.value)
+			body: JSON.stringify({
+				source: result.value.analysis.source,
+				gameId: result.value.analysis.gameId,
+				depth: result.value.analysis.depth,
+				evals: result.value.evals
+			})
 		});
 		if (!res.ok) cacheNote = 'Analysis computed but could not be cached.';
 	}
@@ -216,7 +212,7 @@
 	</svg>
 {/snippet}
 
-<div class="min-h-screen" style="background: var(--bg);">
+<div class="min-h-dvh" style="background: var(--bg);">
 	<main class="mx-auto max-w-6xl px-4 py-5">
 		<header class="mb-4">
 			<div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -278,6 +274,7 @@
 						<div class="min-w-0 flex-1">
 							<Board
 								{fen}
+								interactive={false}
 								selected={null}
 								legalDestinations={[]}
 								{lastMove}
@@ -615,6 +612,13 @@
 	}
 	.move:hover {
 		background: var(--surface-2);
+	}
+	/* Roomier move rows on touch — the desktop list is denser by design. */
+	@media (pointer: coarse) {
+		.move {
+			min-height: 2.5rem;
+			padding: 0.45rem 0.6rem;
+		}
 	}
 	.move-active {
 		background: var(--text);

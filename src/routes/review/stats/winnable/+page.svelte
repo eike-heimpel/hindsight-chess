@@ -115,7 +115,7 @@
 
 <svelte:head><title>Review · Winnable losses</title></svelte:head>
 
-<div class="min-h-screen" style="background: var(--bg);">
+<div class="min-h-dvh" style="background: var(--bg);">
 	<main class="mx-auto max-w-4xl px-4 py-8">
 		<header class="mb-2 flex items-baseline justify-between gap-4">
 			<h1 class="text-3xl font-bold tracking-tight" style="color: {C.ink};">Winnable losses</h1>
@@ -343,19 +343,27 @@
 
 	.segmented {
 		display: inline-flex;
+		max-width: 100%;
 		gap: 0.25rem;
 		padding: 0.25rem;
 		border-radius: 9999px;
 		background: var(--surface-2);
+		overflow-x: auto;
+		scrollbar-width: none;
+	}
+	.segmented::-webkit-scrollbar {
+		display: none;
 	}
 	.seg {
 		display: inline-flex;
+		flex-shrink: 0;
 		align-items: center;
 		gap: 0.4rem;
 		border-radius: 9999px;
 		padding: 0.4rem 0.95rem;
 		font-size: 0.85rem;
 		font-weight: 600;
+		white-space: nowrap;
 		color: var(--text-2);
 		transition:
 			background var(--dur),

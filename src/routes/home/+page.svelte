@@ -283,11 +283,17 @@
 			});
 			if (!revealed.ok || cancelRequested) return;
 
-			// Persist the analysis before the headline endpoint reads it.
+			// Persist the analysis before the headline endpoint reads it. We send the
+			// raw evals; the server re-derives the analysis from its own stored moves.
 			await fetch('/api/review/analyze', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify(revealed.analysis)
+				body: JSON.stringify({
+					source: revealed.analysis.source,
+					gameId: revealed.analysis.gameId,
+					depth: revealed.analysis.depth,
+					evals: revealed.evals
+				})
 			});
 			if (cancelRequested) return;
 
@@ -523,7 +529,7 @@
 	   room with a light on, not a console. Stays on the surface layer; no global
 	   token changes. */
 	.glow {
-		min-height: 100vh;
+		min-height: 100dvh;
 		background:
 			radial-gradient(
 				120% 70% at 50% -10%,

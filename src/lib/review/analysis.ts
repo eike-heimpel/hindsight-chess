@@ -39,6 +39,20 @@ export type GameAnalysis = {
 };
 
 /**
+ * What the browser POSTs to `/api/review/analyze`: the raw engine evals plus the
+ * game identity, NOT the derived analysis. The server re-runs `buildAnalysis`
+ * against its own stored game moves so the classification/accuracy layer is
+ * authenticated — only the engine numbers (`cp`/`bestMove`/`pv`) are trusted, the
+ * same trust boundary the explain route uses.
+ */
+export type AnalyzeRequest = {
+	source: ReviewSource;
+	gameId: string;
+	depth: number;
+	evals: EngineEval[];
+};
+
+/**
  * `evals[k]` is the engine eval of the position *before* move `k+1` (i.e.
  * `moves[k].fenBefore`) for `k` in `0..n-1`, plus `evals[n]` for the final
  * position after the last move. So `evals.length === moves.length + 1`, and

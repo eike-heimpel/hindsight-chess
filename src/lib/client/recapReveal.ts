@@ -1,4 +1,5 @@
 import type { Side } from '$lib/chess/types';
+import type { EngineEval } from '$lib/engine/engine';
 import type { GameAnalysis } from '$lib/review/analysis';
 import { recapOverlayFrom, sideFor } from '$lib/review/stats/perspective';
 import type { ReviewGame } from '$lib/review/types';
@@ -64,7 +65,9 @@ export function initialState(): GameState {
 	};
 }
 
-export type RevealResult = { ok: true; analysis: GameAnalysis; side: Side } | { ok: false };
+export type RevealResult =
+	| { ok: true; analysis: GameAnalysis; evals: EngineEval[]; side: Side }
+	| { ok: false };
 
 /**
  * Analyze a fetched game and emit the reveal patches. Starts at `analyzing`
@@ -107,7 +110,7 @@ export async function revealGame(
 	if (remaining > 0) await sleep(remaining);
 	if (cancelled?.()) return { ok: false };
 
-	const overlay = recapOverlayFrom(result.value, side);
+	const overlay = recapOverlayFrom(result.value.analysis, side);
 	onPatch({
 		phase: 'analyzed',
 		animateGraph: true,
@@ -115,7 +118,7 @@ export async function revealGame(
 		accuracy: overlay.accuracy,
 		peakWin: overlay.peakWin
 	});
-	return { ok: true, analysis: result.value, side };
+	return { ok: true, analysis: result.value.analysis, evals: result.value.evals, side };
 }
 
 /**

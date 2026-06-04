@@ -47,10 +47,16 @@ export async function batchAnalyze(
 				failed.push({ ref, message: result.error.message });
 				continue;
 			}
+			const { analysis, evals } = result.value;
 			const res = await fetch('/api/review/analyze', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify(result.value)
+				body: JSON.stringify({
+					source: analysis.source,
+					gameId: analysis.gameId,
+					depth: analysis.depth,
+					evals
+				})
 			});
 			if (!res.ok) {
 				failed.push({ ref, message: `cache write failed (${res.status})` });
