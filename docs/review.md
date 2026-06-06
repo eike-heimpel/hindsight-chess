@@ -40,13 +40,24 @@ Built scope: ingestion (chess.com + lichess) + replay, the analysis spine (per-m
   (`src/lib/client/reviewAnalysis.ts`) with a progress bar; on `ok` it sets local
   analysis state **and** POSTs to `/api/review/analyze` to cache (a non-fatal
   note if the cache write fails); on `err` it shows the message.
-- **Eval bar** beside the board, white-POV win% synced to the current ply (ply 0
-  = `moves[0].winBefore`; ply p = that move's `winAfter` flipped for black).
-- **Per-move classification dots** in the move list, looked up by `ply`
-  (emerald/stone/amber/orange/rose for best/good/inaccuracy/mistake/blunder).
+- **Eval bar** (`EvalBar`) beside the board, white-POV win% synced to the current
+  ply (ply 0 = `moves[0].winBefore`; ply p = that move's `winAfter` flipped for
+  black).
+- **Per-move classification dots** in the move list (`MoveList`), looked up by
+  `ply` (emerald/stone/amber/orange/rose for best/good/inaccuracy/mistake/blunder).
 - **Per-side accuracy** badge next to each player name.
-- **Engine best-move arrow** for the shown position via `Board`'s `opponentArrow`
-  prop + `uciSquares()`.
+- **Move verdict + best-move arrow** for the move at the current ply: `MoveVerdict`
+  names what was played and the better move, and `Board`'s `opponentArrow` (via
+  `uciSquares()`) draws that better move. Both key off `analysisByPly[ply]` so the
+  words and the arrow agree — the better alternative to the move just played, not
+  the next move to play.
+- **Play it out from here** — `exploreLine.svelte.ts` (a rune module with an
+  injected `evaluate`, mirroring `recapQueue.svelte.ts`) forks a throwaway branch
+  from the shown position where you play both sides (interactive `Board` +
+  `PromotionPicker`). A live in-browser eval drives `EvalBar` and the arrow, and
+  each branch move is classified like the game; `ExplorePanel` renders the line +
+  verdict. `exit()` (or any game-nav) returns to the replay, which is never
+  touched.
 
 ### Grounded explainer — as built (slice 3)
 

@@ -103,9 +103,10 @@ npm run calibrate:review -- <chesscom-user> [sampleSize]
   Slots are `{#snippet}`/`{@render}`.
 - A route component over ~250 lines doing async orchestration extracts that into
   a `.svelte.ts` rune module — `recapQueue.svelte.ts` (the home reveal queue,
-  with an injected `RecapEngine`) is the pattern to follow; the
-  `review/[source]/[gameId]/+page.svelte` route (the largest) is the next
-  candidate.
+  with an injected `RecapEngine`) and `exploreLine.svelte.ts` (the review board's
+  "play it out from here" branch, with an injected `evaluate`) are the pattern to
+  follow. The `review/[source]/[gameId]/+page.svelte` route still owns its
+  analyze/explain orchestration inline — the remaining extraction candidate.
 
 ### Trust + mobile
 

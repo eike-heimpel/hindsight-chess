@@ -5,14 +5,18 @@
 	import { untrack } from 'svelte';
 	import Board from '$lib/components/Board.svelte';
 	import type { Square } from '$lib/chess/types';
-	import type { ReviewMove } from '$lib/review/types';
 	import { analyzeGame } from '$lib/client/reviewAnalysis';
 	import { explainMove } from '$lib/client/reviewExplain';
+	import { createExploreLine } from '$lib/client/exploreLine.svelte';
 	import { uciSquares, type GameAnalysis, type MoveAnalysis } from '$lib/review/analysis';
-	import type { MoveClass } from '$lib/review/classify';
 	import { C, CLASS_COLOR } from '$lib/review/charts/palette';
 	import BackLink from '$lib/components/BackLink.svelte';
 	import Disclosure from '$lib/components/Disclosure.svelte';
+	import PromotionPicker from '$lib/components/PromotionPicker.svelte';
+	import EvalBar from '$lib/review/EvalBar.svelte';
+	import MoveVerdict from '$lib/review/MoveVerdict.svelte';
+	import MoveList from '$lib/review/MoveList.svelte';
+	import ExplorePanel from '$lib/review/ExplorePanel.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -52,9 +56,18 @@
 	});
 
 	function goTo(n: number) {
+		if (explore.active) explore.exit(); // leaving the branch returns to the game
 		ply = Math.max(0, Math.min(plyCount, n));
 	}
 	function onKey(e: KeyboardEvent) {
+		if (explore.active) {
+			// In the branch, arrows take back / play the engine's move; no game nav.
+			if (e.key === 'ArrowLeft') {
+				e.preventDefault();
+				explore.undo();
+			}
+			return;
+		}
 		if (e.key === 'ArrowLeft') {
 			e.preventDefault();
 			goTo(ply - 1);
@@ -79,15 +92,6 @@
 		const s = Math.round(ms / 1000);
 		return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 	}
-
-	type Pair = { no: number; white?: ReviewMove; black?: ReviewMove };
-	const pairs = $derived.by(() => {
-		const out: Pair[] = [];
-		for (let i = 0; i < plyCount; i += 2) {
-			out.push({ no: i / 2 + 1, white: moves[i], black: moves[i + 1] });
-		}
-		return out;
-	});
 
 	const dateFmt = new Intl.DateTimeFormat('en', { dateStyle: 'medium' });
 	const resultLabel = $derived(
@@ -119,20 +123,15 @@
 		return m.color === 'w' ? m.winAfter : 100 - m.winAfter;
 	});
 
-	// Engine's best move in the position currently shown (= before the next move).
+	// The better move for the move just played — what should have been played on
+	// this turn, shown alongside the actual move (highlighted via `lastMove`) so
+	// you see both on one screen. Matches the verdict text below.
 	const bestArrow = $derived.by(() => {
-		const next = analysisByPly[ply + 1];
-		if (!next?.bestMoveUci) return null;
-		return uciSquares(next.bestMoveUci);
+		const m = analysisByPly[ply];
+		if (!m?.bestMoveUci) return null;
+		return uciSquares(m.bestMoveUci);
 	});
 
-	const CLASS_LABEL: Record<MoveClass, string> = {
-		best: 'Best',
-		good: 'Good',
-		inaccuracy: 'Inaccuracy',
-		mistake: 'Mistake',
-		blunder: 'Blunder'
-	};
 	function dotColor(p: number): string | null {
 		const m = analysisByPly[p];
 		return m ? CLASS_COLOR[m.classification] : null;
@@ -147,6 +146,24 @@
 		if (!analysis) return null;
 		return color === 'w' ? analysis.accuracy.white : analysis.accuracy.black;
 	}
+
+	// "Play it out from here" — a disposable branch with its own live engine
+	// readout. While active it drives the board; the game's replay is untouched
+	// and one tap on "Return to game" (or any game-nav action) restores it.
+	const explore = createExploreLine();
+
+	function moveLabel(p: number): string {
+		if (p === 0) return 'the starting position';
+		const n = Math.ceil(p / 2);
+		return `${n}${p % 2 === 1 ? '.' : '…'} ${moves[p - 1].san}`;
+	}
+
+	// The board, eval bar and best-move arrow read from the branch while it's
+	// active, otherwise from the replay.
+	const boardFen = $derived(explore.active ? explore.currentFen : fen);
+	const boardLastMove = $derived(explore.active ? explore.lastMove : lastMove);
+	const boardArrow = $derived(explore.active ? explore.bestArrow : bestArrow);
+	const boardWhiteWin = $derived(explore.active ? explore.whiteWin : whiteWin);
 
 	async function runAnalysis() {
 		analyzing = true;
@@ -253,33 +270,25 @@
 					{@render playerRow(topPlayer, topColor, clockAt(topColor))}
 
 					<div class="mt-1.5 flex gap-2">
-						{#if whiteWin !== null}
-							<div
-								class="relative w-2.5 shrink-0 overflow-hidden rounded-full"
-								style="background: var(--eval-black);"
-								aria-hidden="true"
-							>
-								<div
-									class="absolute inset-x-0 bottom-0 transition-[height] duration-200"
-									style="height: {whiteWin}%; background: var(--eval-white);"
-								></div>
-								<div
-									class="absolute inset-x-0 top-1/2 h-px -translate-y-1/2"
-									style="background: var(--eval-mid);"
-								></div>
-							</div>
-						{/if}
-						<div class="min-w-0 flex-1">
+						<EvalBar whiteWin={boardWhiteWin} pulse={explore.evaluating} />
+						<div class="relative min-w-0 flex-1">
 							<Board
-								{fen}
-								interactive={false}
-								selected={null}
-								legalDestinations={[]}
-								{lastMove}
-								opponentArrow={bestArrow}
-								onSquareClick={() => {}}
+								fen={boardFen}
+								interactive={explore.active}
+								selected={explore.active ? explore.selected : null}
+								legalDestinations={explore.active ? explore.legalDests : []}
+								lastMove={boardLastMove}
+								opponentArrow={boardArrow}
+								onSquareClick={explore.active ? explore.onSquareClick : () => {}}
 								{orientation}
 							/>
+							{#if explore.pendingPromotion}
+								<PromotionPicker
+									color={explore.promotionColor === 'w' ? 'w' : 'b'}
+									onSelect={(piece) => explore.completePromotion(piece)}
+									onCancel={() => explore.cancelPromotion()}
+								/>
+							{/if}
 						</div>
 					</div>
 
@@ -287,52 +296,72 @@
 						{@render playerRow(bottomPlayer, bottomColor, clockAt(bottomColor))}
 					</div>
 
-					<!-- Replay controls -->
+					<!-- Replay controls — swapped for branch controls while exploring -->
 					<div class="mt-3 flex items-center justify-center gap-2">
-						<div class="ctrl-group">
-							<button class="ctrl" onclick={() => goTo(0)} aria-label="First move"
-								>{@render ctrlIcon('first')}</button
-							>
-							<button class="ctrl" onclick={() => goTo(ply - 1)} aria-label="Previous move"
-								>{@render ctrlIcon('prev')}</button
-							>
-							<span class="ctrl-count tabular-nums">{ply} / {plyCount}</span>
-							<button class="ctrl" onclick={() => goTo(ply + 1)} aria-label="Next move"
-								>{@render ctrlIcon('next')}</button
-							>
-							<button class="ctrl" onclick={() => goTo(plyCount)} aria-label="Last move"
-								>{@render ctrlIcon('last')}</button
-							>
-						</div>
+						{#if explore.active}
+							<div class="ctrl-group">
+								<button
+									class="ctrl"
+									onclick={() => explore.undo()}
+									disabled={explore.nodes.length === 0}
+									aria-label="Take back"
+								>
+									{@render ctrlIcon('prev')}
+								</button>
+								<button class="branch-return" onclick={() => explore.exit()}>Return to game</button>
+							</div>
+						{:else}
+							<div class="ctrl-group">
+								<button class="ctrl" onclick={() => goTo(0)} aria-label="First move"
+									>{@render ctrlIcon('first')}</button
+								>
+								<button class="ctrl" onclick={() => goTo(ply - 1)} aria-label="Previous move"
+									>{@render ctrlIcon('prev')}</button
+								>
+								<span class="ctrl-count tabular-nums">{ply} / {plyCount}</span>
+								<button class="ctrl" onclick={() => goTo(ply + 1)} aria-label="Next move"
+									>{@render ctrlIcon('next')}</button
+								>
+								<button class="ctrl" onclick={() => goTo(plyCount)} aria-label="Last move"
+									>{@render ctrlIcon('last')}</button
+								>
+							</div>
+						{/if}
 						<button
 							class="ctrl-solo"
 							onclick={() => (orientation = orientation === 'white' ? 'black' : 'white')}
 							aria-label="Flip board">{@render ctrlIcon('flip')}</button
 						>
 					</div>
+
+					{#if !explore.active}
+						<div class="mt-2 flex justify-center">
+							<button class="branch-enter" onclick={() => explore.enter(fen, moveLabel(ply))}>
+								Play it out from here ↪
+							</button>
+						</div>
+					{/if}
 				</div>
 
-				<!-- Move verdict + explanation -->
-				{#if currentMove}
-					{@const cc = CLASS_COLOR[currentMove.classification]}
-					<div
-						class="verdict mt-4"
-						style="background: color-mix(in srgb, {cc} 10%, transparent); border-color: color-mix(in srgb, {cc} 22%, transparent);"
-					>
-						<span class="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style="background: {cc};"
-						></span>
-						<span class="font-semibold" style="color: {cc};"
-							>{CLASS_LABEL[currentMove.classification]}</span
-						>
-						<span class="text-sm" style="color: {C.body};">
-							{currentMove.color === 'w' ? 'White' : 'Black'} played
-							<strong style="color: {C.ink};">{currentMove.san}</strong>, best was
-							<strong style="color: {C.ink};">{currentMove.bestMoveSan}</strong>
-						</span>
+				<!-- Move verdict + explanation — the branch panel takes over while exploring -->
+				{#if explore.active}
+					<ExplorePanel
+						baseLabel={explore.baseLabel}
+						nodes={explore.nodes}
+						evaluating={explore.evaluating}
+					/>
+				{:else if currentMove}
+					<div class="mt-4">
+						<MoveVerdict
+							classification={currentMove.classification}
+							mover={currentMove.color}
+							san={currentMove.san}
+							bestSan={currentMove.bestMoveSan}
+						/>
 					</div>
 				{/if}
 
-				{#if ply >= 1}
+				{#if ply >= 1 && !explore.active}
 					<div class="card mt-3">
 						{#if explanations[ply]}
 							<div class="eyebrow mb-1.5">What happened</div>
@@ -402,45 +431,7 @@
 					showLabel="Show the moves"
 					hideLabel="Hide the moves"
 				>
-					<div class="card movelist max-h-[60svh] overflow-y-auto !p-1.5">
-						<ol>
-							{#each pairs as pair (pair.no)}
-								{@const wColor = pair.white ? dotColor(pair.white.ply) : null}
-								{@const bColor = pair.black ? dotColor(pair.black.ply) : null}
-								<li class="grid grid-cols-[1.75rem_1fr_1fr] items-center">
-									<span class="pr-1 text-right text-xs tabular-nums" style="color: {C.muted};"
-										>{pair.no}.</span
-									>
-									{#if pair.white}
-										<button
-											class="move {ply === pair.white.ply ? 'move-active' : ''}"
-											onclick={() => goTo(pair.white!.ply)}
-										>
-											{#if wColor}<span
-													class="mr-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full"
-													style="background: {wColor};"
-												></span>{/if}{pair.white.san}
-										</button>
-									{:else}
-										<span></span>
-									{/if}
-									{#if pair.black}
-										<button
-											class="move {ply === pair.black.ply ? 'move-active' : ''}"
-											onclick={() => goTo(pair.black!.ply)}
-										>
-											{#if bColor}<span
-													class="mr-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full"
-													style="background: {bColor};"
-												></span>{/if}{pair.black.san}
-										</button>
-									{:else}
-										<span></span>
-									{/if}
-								</li>
-							{/each}
-						</ol>
-					</div>
+					<MoveList {moves} activePly={ply} {dotColor} onSelect={goTo} />
 				</Disclosure>
 			</aside>
 		</div>
@@ -580,13 +571,43 @@
 		}
 	}
 
-	.verdict {
-		display: flex;
-		align-items: center;
-		gap: 0.55rem;
-		border-radius: 0.85rem;
-		border: 1px solid;
-		padding: 0.7rem 0.95rem;
+	/* Branch affordances — quiet "play it out" entry + the in-branch return pill. */
+	.branch-enter {
+		border-radius: 9999px;
+		padding: 0.35rem 0.85rem;
+		font-size: 0.8125rem;
+		font-weight: 600;
+		color: var(--text-2);
+		transition:
+			background var(--dur-fast),
+			color var(--dur-fast);
+	}
+	.branch-enter:hover {
+		background: var(--surface-2);
+		color: var(--text);
+	}
+	.branch-return {
+		border-radius: 9999px;
+		padding: 0 0.85rem;
+		height: 2rem;
+		font-size: 0.8rem;
+		font-weight: 600;
+		color: var(--text-2);
+		transition:
+			background var(--dur-fast),
+			color var(--dur-fast);
+	}
+	.branch-return:hover {
+		background: var(--surface-2);
+		color: var(--text);
+	}
+	@media (pointer: coarse) {
+		.branch-enter {
+			min-height: 2.75rem;
+		}
+		.branch-return {
+			height: 2.5rem;
+		}
 	}
 
 	.btn {
@@ -605,34 +626,5 @@
 	.btn:disabled {
 		cursor: default;
 		opacity: 0.6;
-	}
-
-	.movelist ol {
-		font-size: 0.875rem;
-	}
-	.move {
-		display: inline-flex;
-		align-items: center;
-		width: 100%;
-		border-radius: 0.4rem;
-		padding: 0.2rem 0.5rem;
-		font-variant-numeric: tabular-nums;
-		color: var(--text);
-		transition: background var(--dur-fast);
-	}
-	.move:hover {
-		background: var(--surface-2);
-	}
-	/* Roomier move rows on touch — the desktop list is denser by design. */
-	@media (pointer: coarse) {
-		.move {
-			min-height: 2.5rem;
-			padding: 0.45rem 0.6rem;
-		}
-	}
-	.move-active {
-		background: var(--text);
-		color: var(--bg);
-		font-weight: 600;
 	}
 </style>
