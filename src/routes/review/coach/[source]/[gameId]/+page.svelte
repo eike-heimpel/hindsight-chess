@@ -5,6 +5,7 @@
 	import EvalBar from '$lib/review/EvalBar.svelte';
 	import MoveList from '$lib/review/MoveList.svelte';
 	import MoveVerdict from '$lib/review/MoveVerdict.svelte';
+	import ReplayControls from '$lib/components/ReplayControls.svelte';
 	import CoachConversation from '$lib/review/coach/CoachConversation.svelte';
 	import CoachPanel from '$lib/review/coach/CoachPanel.svelte';
 	import { createExploreLine } from '$lib/client/exploreLine.svelte';
@@ -137,31 +138,6 @@
 <svelte:head><title>Coach · {game.white.username} vs {game.black.username}</title></svelte:head>
 <svelte:window onkeydown={onKey} />
 
-{#snippet ctrlIcon(kind: 'first' | 'prev' | 'next' | 'last' | 'flip')}
-	<svg
-		viewBox="0 0 16 16"
-		fill="none"
-		stroke="currentColor"
-		stroke-width="1.6"
-		stroke-linecap="round"
-		stroke-linejoin="round"
-		class="h-4 w-4"
-		aria-hidden="true"
-	>
-		{#if kind === 'first'}
-			<path d="M5 4v8" /><path d="M11.5 4 7 8l4.5 4" />
-		{:else if kind === 'prev'}
-			<path d="M10 4 6 8l4 4" />
-		{:else if kind === 'next'}
-			<path d="M6 4l4 4-4 4" />
-		{:else if kind === 'last'}
-			<path d="M11 4v8" /><path d="M4.5 4 9 8l-4.5 4" />
-		{:else if kind === 'flip'}
-			<path d="M6 3v7M6 3 4.2 5M6 3 7.8 5" /><path d="M10 13V6M10 13 8.2 11M10 13 11.8 11" />
-		{/if}
-	</svg>
-{/snippet}
-
 <div class="min-h-dvh" style="background: var(--bg); padding-bottom: env(safe-area-inset-bottom);">
 	<main class="mx-auto max-w-6xl px-4 py-5">
 		<PageHeader
@@ -188,7 +164,7 @@
 		<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
 			<!-- Board column -->
 			<div>
-				<div class="mx-auto w-full" style="max-width: min(54svh, 100%);">
+				<div class="mx-auto w-full" style="max-width: min(66svh, 40rem, 100%);">
 					<div class="flex gap-2">
 						<EvalBar
 							whiteWin={boardWhiteWin}
@@ -209,41 +185,17 @@
 						</div>
 					</div>
 
-					<!-- Replay controls (hidden while a move is being discussed). -->
-					<div class="mt-3 flex items-center justify-center gap-2">
-						{#if explore.active}
-							<div class="ctrl-group">
-								<button
-									class="ctrl"
-									onclick={() => explore.undo()}
-									disabled={explore.nodes.length === 0}
-									aria-label="Take back">{@render ctrlIcon('prev')}</button
-								>
-								<button class="branch-return" onclick={() => explore.exit()}>Return to game</button>
-							</div>
-						{:else if !active}
-							<div class="ctrl-group">
-								<button class="ctrl" onclick={() => goTo(0)} aria-label="First move"
-									>{@render ctrlIcon('first')}</button
-								>
-								<button class="ctrl" onclick={() => goTo(ply - 1)} aria-label="Previous move"
-									>{@render ctrlIcon('prev')}</button
-								>
-								<span class="ctrl-count tabular-nums">{ply} / {plyCount}</span>
-								<button class="ctrl" onclick={() => goTo(ply + 1)} aria-label="Next move"
-									>{@render ctrlIcon('next')}</button
-								>
-								<button class="ctrl" onclick={() => goTo(plyCount)} aria-label="Last move"
-									>{@render ctrlIcon('last')}</button
-								>
-							</div>
-						{/if}
-						<button
-							class="ctrl-solo"
-							onclick={() => (orientation = orientation === 'white' ? 'black' : 'white')}
-							aria-label="Flip board">{@render ctrlIcon('flip')}</button
-						>
-					</div>
+					<ReplayControls
+						{ply}
+						{plyCount}
+						{goTo}
+						onFlip={() => (orientation = orientation === 'white' ? 'black' : 'white')}
+						exploring={explore.active}
+						canUndo={explore.nodes.length > 0}
+						onUndo={() => explore.undo()}
+						onExitExplore={() => explore.exit()}
+						navHidden={active}
+					/>
 
 					<!-- "Talk about this move" — opens the thread on the current ply. -->
 					{#if !active && !explore.active && ply >= 1}
@@ -316,59 +268,6 @@
 		color: var(--text-muted);
 	}
 
-	.ctrl-group {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.15rem;
-		border-radius: 9999px;
-		border: 1px solid var(--border);
-		background: var(--surface-1);
-		padding: 0.2rem;
-		box-shadow: var(--shadow-1);
-	}
-	.ctrl {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		height: 2rem;
-		width: 2rem;
-		border-radius: 9999px;
-		color: var(--text-2);
-		transition:
-			background var(--dur-fast),
-			color var(--dur-fast);
-	}
-	.ctrl:hover {
-		background: var(--surface-2);
-		color: var(--text);
-	}
-	.ctrl-count {
-		min-width: 3.5rem;
-		text-align: center;
-		font-size: 0.8rem;
-		font-weight: 600;
-		color: var(--text-2);
-	}
-	.ctrl-solo {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		height: 2.4rem;
-		width: 2.4rem;
-		border-radius: 9999px;
-		border: 1px solid var(--border);
-		background: var(--surface-1);
-		color: var(--text-2);
-		box-shadow: var(--shadow-1);
-		transition:
-			background var(--dur-fast),
-			color var(--dur-fast);
-	}
-	.ctrl-solo:hover {
-		background: var(--surface-2);
-		color: var(--text);
-	}
-
 	.branch-enter {
 		border-radius: 9999px;
 		padding: 0.35rem 0.85rem;
@@ -383,38 +282,12 @@
 		background: var(--surface-2);
 		color: var(--text);
 	}
-	.branch-return {
-		border-radius: 9999px;
-		padding: 0 0.85rem;
-		height: 2rem;
-		font-size: 0.8rem;
-		font-weight: 600;
-		color: var(--text-2);
-		transition:
-			background var(--dur-fast),
-			color var(--dur-fast);
-	}
-	.branch-return:hover {
-		background: var(--surface-2);
-		color: var(--text);
-	}
 
 	/* Roomier tap targets on touch (CLAUDE.md mobile rule). */
 	@media (pointer: coarse) {
-		.ctrl {
-			height: 2.5rem;
-			width: 2.5rem;
-		}
-		.ctrl-solo {
-			height: 2.75rem;
-			width: 2.75rem;
-		}
 		.toggle,
 		.branch-enter {
 			min-height: 2.75rem;
-		}
-		.branch-return {
-			height: 2.5rem;
 		}
 	}
 </style>

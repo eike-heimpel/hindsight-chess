@@ -333,10 +333,16 @@ export function createCoachThread(opts: {
 			const mv = move(ply);
 			bestFrames = bestFramesFrom(mv.fenBefore, deep.bestLines[0]?.pv ?? []);
 			punishFrames = punishFramesFrom(mv.fenBefore, mv.uci, deep.replyLine?.pv ?? []);
-			// Refine the bar from the deep eval (white-POV).
-			const stm = sideToMove(mv.fenBefore);
-			const cp = deep.bestLines[0]?.cp;
-			if (cp !== undefined) whiteWin = stm === 'w' ? winPercent(cp) : 100 - winPercent(cp);
+			// Refine the bar from a deep eval of the position ON THE BOARD — i.e. AFTER
+			// the move (`replyLine` evaluates fenAfter). `bestLines` evaluates fenBefore
+			// (the engine's search position), so refining off it snapped the bar from
+			// winAfter to winBefore with no move change. Null only when the move ended
+			// the game — then the cached seed stands.
+			const after = deep.replyLine;
+			if (after) {
+				const stm = sideToMove(mv.fenAfter);
+				whiteWin = stm === 'w' ? winPercent(after.cp) : 100 - winPercent(after.cp);
+			}
 
 			if (variant === 'A') await runTurn('open');
 		},

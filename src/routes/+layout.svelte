@@ -166,6 +166,22 @@
 	{@render children()}
 </div>
 
+<!-- The legal floor: Imprint + Privacy must be reachable from every public page
+     (German operator, § 5 DDG + GDPR). Quiet, muted, in normal flow at the
+     bottom of every page. Extra bottom clearance when the fixed Menu pill is
+     shown so it never sits on top of these links. -->
+<footer
+	class="mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-x-4 gap-y-1 px-6 pt-8 text-xs text-text-muted {showChrome
+		? 'pb-24'
+		: 'pb-8'}"
+>
+	<a href="/impressum" class="transition-colors hover:text-text-2">Imprint</a>
+	<span aria-hidden="true">·</span>
+	<a href="/privacy" class="transition-colors hover:text-text-2">Privacy</a>
+	<span aria-hidden="true">·</span>
+	<a href="/terms" class="transition-colors hover:text-text-2">Terms</a>
+</footer>
+
 <style>
 	/* Hairlines flanking the Menu pill: hidden until the page bottom is reached,
 	   then they draw outward and settle — a calm echo of the win% eval line. */
