@@ -5,6 +5,8 @@ import { getUser } from '$lib/server/auth';
 import { listGamesForAccounts } from '$lib/server/reviewGames';
 import { getAnalysesByIds } from '$lib/server/reviewAnalysis';
 import { listExplanations } from '$lib/server/reviewExplanations';
+import { getGameMoveStates } from '$lib/server/userMoveState';
+import { getReviewState } from '$lib/server/userReviewState';
 import { collectBlunders } from '$lib/review/stats/blunders';
 import type { ReviewSource } from '$lib/review/types';
 
@@ -42,14 +44,27 @@ export const load: PageServerLoad = async ({ locals }) => {
 	for (const group of byGame.values()) {
 		const { source, gameId } = group[0];
 		const cached = await listExplanations(source as ReviewSource, gameId);
+		// Per-user overlay seeded alongside the explanation cache, by ply — lets a
+		// revisit render the user's mark/note/thread/snapshot with zero engine cost.
+		const states = await getGameMoveStates(user.userId, source as ReviewSource, gameId);
 		for (const e of group) {
 			if (cached[e.ply]) e.cachedExplanation = cached[e.ply];
+			const state = states[e.ply];
+			if (state) {
+				e.mark = state.mark;
+				e.note = state.note?.text;
+				e.hasThread = !!state.thread;
+				e.snapshot = state.snapshot?.text;
+			}
 		}
 	}
+
+	const cursor = (await getReviewState(user.userId)).cursors.blunders ?? null;
 
 	return {
 		accounts,
 		entries,
+		cursor,
 		coverage: { analyzed: analyses.size, total: games.length }
 	};
 };

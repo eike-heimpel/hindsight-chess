@@ -172,6 +172,13 @@ export type BlunderEntry = {
 	/** Seeded by the loader from the explanation cache, when one exists — lets a
 	 *  revisit render instantly with zero engine cost. */
 	cachedExplanation?: string;
+	/** Seeded by the loader from the per-user move-state overlay, when the user has
+	 *  touched this move — the mark, their note, whether a coach thread exists, and
+	 *  any saved-explanation snapshot. */
+	mark?: 'star' | 'done' | 'dismissed';
+	note?: string;
+	hasThread?: boolean;
+	snapshot?: string;
 };
 
 /** Everything we show for one time class. Cheap stats (record, rating, openings,

@@ -43,13 +43,15 @@ it first for anything non-trivial. Code wins on any conflict with the doc.
 Resolve before exposing this to strangers:
 
 1. **Trust model.** Analysis runs in the browser, so routes that write the
-   global game-keyed caches must re-derive from server-stored games rather than
-   trust the POST body — the browser sends only engine numbers. `analyze` and
-   `coach/discuss` already follow this pattern; the remaining gap is `explain`,
-   which still trusts what's POSTed. The work is making _all_ such routes
-   re-derive. Note: the game-keyed caches (`reviewGames`, `reviewAnalysis`,
-   `reviewExplanations`) are deliberately global so engine/LLM cost dedupes
-   across users — the fix is trusting _writes_, not per-user copies.
+   global game-keyed caches re-derive from server-stored games rather than trust
+   the POST body — `analyze`, `explain`, and `coach/discuss` all validate
+   `fenBefore`/`playedUci` against their stored move and rebuild the facts
+   server-side (shared request base in `explainRequest.ts`). What's still trusted
+   is the _engine numbers_ themselves (evals/lines): a client can still POST
+   misleading evals for the real move, so closing the hole fully means re-running
+   or signing the engine server-side. Note: the game-keyed caches (`reviewGames`,
+   `reviewAnalysis`, `reviewExplanations`) are deliberately global so engine/LLM
+   cost dedupes across users — the fix is trusting _writes_, not per-user copies.
 2. **Auth — wired.** Better Auth with magic-link email (Postmark) is live;
    `auth.ts` maps the session to `User`, and multi-user works. Still open for
    strangers: sign-in rate-limiting / abuse, and whether sign-up is open or
@@ -115,8 +117,9 @@ npm run calibrate:review -- <chesscom-user> [sampleSize]
 - API routes that write the **global** game-keyed caches (`reviewGames`,
   `reviewAnalysis`, `reviewExplanations`) must re-derive from server-stored data,
   not trust the POST body. The browser sends only engine numbers (evals/lines);
-  the server re-runs the pure builder against its own stored game. `analyze` and
-  `explain` are the references.
+  the server re-runs the pure builder against its own stored game, validating
+  `fenBefore`/`playedUci` against the stored move first (shared request base in
+  `explainRequest.ts`). `analyze`, `explain`, and `coach/discuss` are the references.
 - Mobile-first: base styles target small screens, `sm:`/`md:`/`lg:` scale up.
   Use `min-h-dvh`, never `min-h-screen`/`100vh`. Interactive elements clear ~44px
   at `@media (pointer: coarse)`. Honour `env(safe-area-inset-*)`.

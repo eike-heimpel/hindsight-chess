@@ -74,7 +74,10 @@ prose, hard-grounded in engine lines + chess.js facts.
   top-3 lines from `fenBefore`, and the engine's single best reply to the move
   played (skipped if the move ended the game) — and POSTs the lines.
 - **Server re-derives the chess.js facts canonically.** `POST /api/review/explain`
-  ignores any client-side interpretation: it rebuilds `ReviewExplainFacts` from
+  first validates `fenBefore`/`playedUci` against its own stored move at `ply` (so
+  a write to the global explanation cache can't be poisoned with a position that
+  isn't the real move there), then ignores any client-side interpretation: it
+  rebuilds `ReviewExplainFacts` from
   `fenBefore` + `playedUci` via `buildExplainFacts()` (SAN-ifies each PV, derives
   the played move's piece/capture/attackers/defenders, mover-POV evals, win% and
   classification), then calls the explainer. Hard-grounded prompt in

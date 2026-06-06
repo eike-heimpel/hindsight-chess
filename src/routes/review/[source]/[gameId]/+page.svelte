@@ -7,6 +7,7 @@
 	import type { Square } from '$lib/chess/types';
 	import { analyzeGame } from '$lib/client/reviewAnalysis';
 	import { explainMove } from '$lib/client/reviewExplain';
+	import type { MoveState } from '$lib/server/userMoveState';
 	import { createExploreLine } from '$lib/client/exploreLine.svelte';
 	import { type GameAnalysis } from '$lib/review/analysis';
 	import { C } from '$lib/review/charts/palette';
@@ -55,6 +56,65 @@
 	let explanations = $state<Record<number, string>>(untrack(() => data.explanations));
 	let explaining = $state(false);
 	let explainError = $state<string | null>(null);
+
+	// Per-user move-state overlay (mark/note/…), seeded once like `explanations`.
+	// Optimistic writes patch this map so the controls reflect without a reload.
+	let moveStates = $state<Record<number, MoveState>>(untrack(() => data.moveStates));
+	const currentState = $derived<MoveState | undefined>(ply >= 1 ? moveStates[ply] : undefined);
+
+	// Star / note write straight from the event handler (never an $effect), against
+	// the move currently in view. Both patch `moveStates` optimistically first.
+	function moveRef(p: number) {
+		return { source: game.source, gameId: game.gameId, ply: p };
+	}
+
+	function toggleStar() {
+		if (ply < 1) return;
+		const starred = currentState?.mark === 'star';
+		moveStates = {
+			...moveStates,
+			[ply]: { ...moveStates[ply], mark: starred ? undefined : 'star' }
+		};
+		if (starred) {
+			// Toggle-off clears just the mark facet so a coexisting note survives.
+			void fetch('/api/review/moves', {
+				method: 'DELETE',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ ref: moveRef(ply), facet: 'mark' })
+			});
+		} else {
+			void fetch('/api/review/moves', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ ref: moveRef(ply), facet: 'mark', value: 'star' })
+			});
+		}
+	}
+
+	function writeNote(p: number, text: string) {
+		const trimmed = text.trim();
+		if (trimmed === (moveStates[p]?.note?.text ?? '')) return;
+		moveStates = {
+			...moveStates,
+			[p]: {
+				...moveStates[p],
+				note: trimmed ? { text: trimmed, updatedAt: new Date() } : undefined
+			}
+		};
+		// Emptying the note unsets the facet (DELETE) rather than storing "".
+		if (trimmed)
+			void fetch('/api/review/moves', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ ref: moveRef(p), facet: 'note', value: trimmed })
+			});
+		else
+			void fetch('/api/review/moves', {
+				method: 'DELETE',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ ref: moveRef(p), facet: 'note' })
+			});
+	}
 
 	let fen = $derived(ply === 0 ? (moves[0]?.fenBefore ?? START_FEN) : moves[ply - 1].fenAfter);
 	let lastMove = $derived.by(() => {
@@ -312,6 +372,30 @@
 								<p class="mt-2 text-xs" style="color: {C.bad};">{explainError}</p>
 							{/if}
 						{/if}
+
+						<!-- Per-move star + note, against the move currently in view. The note
+						     textarea is re-seeded per ply via {#key}; it saves from blur. -->
+						<div class="mt-3 flex items-center gap-2">
+							<button
+								class="icon-btn {currentState?.mark === 'star' ? 'icon-on' : ''}"
+								aria-pressed={currentState?.mark === 'star'}
+								title={currentState?.mark === 'star' ? 'Remove star' : 'Star this move'}
+								onclick={toggleStar}>★ Star</button
+							>
+						</div>
+						{#key ply}
+							<div class="mt-2">
+								<label class="eyebrow mb-1 block" for="move-note">Your note</label>
+								<textarea
+									id="move-note"
+									class="note"
+									rows="2"
+									placeholder="What were you thinking here?"
+									value={currentState?.note?.text ?? ''}
+									onblur={(e) => writeNote(ply, e.currentTarget.value)}
+								></textarea>
+							</div>
+						{/key}
 					</div>
 				{/if}
 			</div>
@@ -447,9 +531,50 @@
 	}
 	@media (pointer: coarse) {
 		.branch-enter,
-		.btn {
+		.btn,
+		.icon-btn {
 			min-height: 2.75rem;
 		}
+	}
+
+	.icon-btn {
+		border-radius: 0.6rem;
+		border: 1px solid var(--border-strong);
+		background: var(--surface-1);
+		padding: 0.4rem 0.8rem;
+		font-size: 0.8rem;
+		font-weight: 600;
+		color: var(--text-2);
+		transition:
+			background var(--dur),
+			color var(--dur);
+	}
+	.icon-btn:hover {
+		background: var(--surface-2);
+	}
+	.icon-on {
+		background: var(--surface-3);
+		color: var(--text);
+		box-shadow: var(--shadow-1);
+	}
+
+	.note {
+		width: 100%;
+		border-radius: 0.6rem;
+		border: 1px solid var(--border-strong);
+		background: var(--surface-1);
+		padding: 0.5rem 0.7rem;
+		font-size: 0.85rem;
+		line-height: 1.5;
+		color: var(--text);
+		resize: vertical;
+	}
+	.note::placeholder {
+		color: var(--text-muted);
+	}
+	.note:focus {
+		outline: none;
+		border-color: var(--rating);
 	}
 
 	.btn {

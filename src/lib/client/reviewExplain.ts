@@ -17,11 +17,17 @@ import { safeEvaluate } from './engine';
 export const EXPLAIN_MULTIPV = 3;
 export const EXPLAIN_MOVETIME_MS = 3500;
 
-export async function explainMove(
+/**
+ * Run the two engine passes and assemble the engine-number request body. Shared
+ * by `explainMove` (which then asks the LLM) and the "save this explanation"
+ * snapshot flow (which forwards the same body to `/api/review/snapshot`), so both
+ * trust-critical routes are fed by one builder.
+ */
+export async function buildExplainRequest(
 	game: ReviewGame,
 	ply: number,
 	onProgress?: (done: number, total: number) => void
-): Promise<Result<{ text: string }>> {
+): Promise<Result<ReviewExplainRequest>> {
 	const move = game.moves[ply - 1];
 	if (!move) return err('engine_failed', `no move at ply ${ply}`);
 
@@ -47,7 +53,7 @@ export async function explainMove(
 	}
 	onProgress?.(2, 2);
 
-	const body: ReviewExplainRequest = {
+	return ok({
 		source: game.source,
 		gameId: game.gameId,
 		ply,
@@ -55,7 +61,17 @@ export async function explainMove(
 		playedUci: move.uci,
 		bestLines,
 		replyLine
-	};
+	});
+}
+
+export async function explainMove(
+	game: ReviewGame,
+	ply: number,
+	onProgress?: (done: number, total: number) => void
+): Promise<Result<{ text: string }>> {
+	const built = await buildExplainRequest(game, ply, onProgress);
+	if (!built.ok) return err(built.error.kind, built.error.message);
+	const body = built.value;
 
 	let res: Response;
 	try {

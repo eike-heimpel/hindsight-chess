@@ -2,11 +2,12 @@
 	/* eslint-disable svelte/no-navigation-without-resolve --
 	 * Static /review links and the runtime-built game href read clearer as plain
 	 * hrefs; same convention as the other /review pages. */
+	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
 	import type { ReviewGame } from '$lib/review/types';
 	import type { BlunderEntry } from '$lib/review/stats/types';
 	import { uciSquares } from '$lib/review/analysis';
-	import { explainMove } from '$lib/client/reviewExplain';
+	import { explainMove, buildExplainRequest } from '$lib/client/reviewExplain';
 	import Board from '$lib/components/Board.svelte';
 	import RecencyFilter from '$lib/review/RecencyFilter.svelte';
 	import { withinWindow, RECENCY_DEFAULT, type RecencyWindow } from '$lib/review/recency';
@@ -30,18 +31,19 @@
 		data.entries.filter((e) => withinWindow(e.playedAt, recency))
 	);
 
-	// --- time-class filter (pooled by default — see BlunderEntry) ---
+	// --- time-class filter (pooled by default — see BlunderEntry); 'starred' is a
+	// cross-time-class facet filter that joins the same segmented control. ---
 	const FILTERS = $derived<string[]>([
 		'all',
+		'starred',
 		...[...new Set(inWindow.map((e) => e.timeClass))].sort()
 	]);
 	let filter = $state('all');
-	const countFor = (f: string) =>
-		f === 'all' ? inWindow.length : inWindow.filter((e) => e.timeClass === f).length;
+	const matchesFilter = (e: BlunderEntry, f: string) =>
+		f === 'all' ? true : f === 'starred' ? e.mark === 'star' : e.timeClass === f;
+	const countFor = (f: string) => inWindow.filter((e) => matchesFilter(e, f)).length;
 
-	const entries = $derived<BlunderEntry[]>(
-		filter === 'all' ? inWindow : inWindow.filter((e) => e.timeClass === filter)
-	);
+	const entries = $derived<BlunderEntry[]>(inWindow.filter((e) => matchesFilter(e, filter)));
 
 	let index = $state(0);
 	const clamped = $derived(Math.min(index, Math.max(0, entries.length - 1)));
@@ -62,14 +64,140 @@
 		index = 0;
 	}
 
+	// Resume: persist the cursor fire-and-forget, debounced so arrow-key spamming
+	// doesn't hammer the route. Driven from go(), not an $effect.
+	let cursorTimer: ReturnType<typeof setTimeout> | undefined;
+	function persistCursor(entry: BlunderEntry | undefined) {
+		if (!entry) return;
+		clearTimeout(cursorTimer);
+		const ref = { source: entry.source, gameId: entry.gameId, ply: entry.ply };
+		cursorTimer = setTimeout(() => {
+			void fetch('/api/review/cursor', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ queue: 'blunders', ref })
+			});
+		}, 400);
+	}
+
 	function go(delta: number) {
 		index = Math.min(entries.length - 1, Math.max(0, clamped + delta));
+		persistCursor(entries[index]);
 	}
 
 	function onKey(e: KeyboardEvent) {
 		if (e.key === 'ArrowLeft') go(-1);
 		else if (e.key === 'ArrowRight') go(1);
 	}
+
+	// Star / done write straight from the event handler (never an $effect). Both
+	// optimistically patch the seeded entry so the segmented "Starred" count and
+	// the muted-card treatment update without a reload, then POST to the route.
+	async function writeMark(entry: BlunderEntry, mark: NonNullable<BlunderEntry['mark']>) {
+		const ref = { source: entry.source, gameId: entry.gameId, ply: entry.ply };
+		await fetch('/api/review/moves', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ ref, facet: 'mark', value: mark })
+		});
+	}
+
+	function toggleStar(entry: BlunderEntry) {
+		const next = entry.mark === 'star' ? undefined : 'star';
+		// A toggle-off has no 'unstar' mark; clear just the mark facet (DELETE with
+		// facet:'mark') so a coexisting note/snapshot on the move survives.
+		entry.mark = next;
+		if (next) void writeMark(entry, 'star');
+		else
+			void fetch('/api/review/moves', {
+				method: 'DELETE',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					ref: { source: entry.source, gameId: entry.gameId, ply: entry.ply },
+					facet: 'mark'
+				})
+			});
+	}
+
+	// Done mutes the card and advances to the next entry that isn't already done.
+	function markDone(entry: BlunderEntry) {
+		entry.mark = 'done';
+		void writeMark(entry, 'done');
+		const from = clamped;
+		const nextIdx = entries.findIndex((e, i) => i > from && e.mark !== 'done');
+		index = nextIdx === -1 ? from : nextIdx;
+		persistCursor(entries[index]);
+	}
+
+	// Note writes from the blur/change handler (never an $effect). The textarea is
+	// uncontrolled — seeded from entry.note on mount via {#key} — so we read the
+	// element's value and only POST when it actually changed, patching the entry so
+	// the seeded value and the "Starred"-style overlay stay in sync.
+	function writeNote(entry: BlunderEntry, text: string) {
+		const trimmed = text.trim();
+		if (trimmed === (entry.note ?? '')) return;
+		entry.note = trimmed || undefined;
+		const ref = { source: entry.source, gameId: entry.gameId, ply: entry.ply };
+		// Emptying the note unsets the facet (DELETE) rather than storing "".
+		if (trimmed)
+			void fetch('/api/review/moves', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ ref, facet: 'note', value: trimmed })
+			});
+		else
+			void fetch('/api/review/moves', {
+				method: 'DELETE',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ ref, facet: 'note' })
+			});
+	}
+
+	// "Save this explanation" — freeze the cached LLM prose + the engine facts. The
+	// snapshot route takes the SAME engine-number body the explain flow builds, so
+	// we re-run the two engine passes (cheap, bounded) and forward the body; the
+	// server re-reads the prose and rebuilds the facts. Optimistically reflects
+	// saved state from entry.snapshot.
+	let saving = $state<Record<string, boolean>>({});
+	async function saveSnapshot(entry: BlunderEntry) {
+		const id = explainId(entry);
+		if (saving[id] || entry.snapshot) return;
+		saving = { ...saving, [id]: true };
+		try {
+			const gameKey = `${entry.source}:${entry.gameId}`;
+			let game = gameCache[gameKey];
+			if (!game) {
+				const res = await fetch(`/api/review/game/${entry.source}/${entry.gameId}`);
+				if (!res.ok) throw new Error(`couldn't load game (${res.status})`);
+				game = (await res.json()) as ReviewGame;
+				gameCache[gameKey] = game;
+			}
+			const built = await buildExplainRequest(game, entry.ply);
+			if (!built.ok) throw new Error(built.error.message);
+			const res = await fetch('/api/review/snapshot', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(built.value)
+			});
+			if (!res.ok) throw new Error(`save failed (${res.status})`);
+			entry.snapshot = currentExplain?.text;
+		} finally {
+			saving = { ...saving, [id]: false };
+		}
+	}
+
+	// Resume where the user left off: match the saved cursor against the *current*
+	// filtered view at mount. A one-shot non-reactive read → onMount, not $effect.
+	// Fail-soft to the worst blunder (index 0) only when the move isn't in view —
+	// an expected state under the recency window / time-class filter.
+	onMount(() => {
+		const c = data.cursor;
+		if (!c) return;
+		const found = entries.findIndex(
+			(e) => e.source === c.source && e.gameId === c.gameId && e.ply === c.ply
+		);
+		if (found !== -1) index = found;
+	});
 
 	// --- on-demand grounded explanation (reuses the move explainer) ---
 	type ExplainState = {
@@ -167,7 +295,7 @@
 					</p>
 				</div>
 			{:else}
-				<section class="card">
+				<section class="card" class:done={current.mark === 'done'}>
 					<!-- Header / readout -->
 					<div class="mb-3 flex flex-wrap items-center justify-between gap-2">
 						<div class="flex items-baseline gap-2">
@@ -215,6 +343,19 @@
 							<div>
 								{#if currentExplain?.text}
 									<div class="explain">{currentExplain.text}</div>
+									<div class="mt-2">
+										{#if current.snapshot}
+											<span class="saved-chip">✓ Saved to your shortlist</span>
+										{:else}
+											<button
+												class="btn"
+												disabled={saving[explainId(current)]}
+												onclick={() => saveSnapshot(current)}
+											>
+												{saving[explainId(current)] ? 'Saving…' : 'Save this explanation'}
+											</button>
+										{/if}
+									</div>
 								{:else if currentExplain?.loading}
 									<button class="btn" disabled>
 										Analyzing the position…{#if currentExplain.progress}
@@ -260,8 +401,41 @@
 						</div>
 					</div>
 
+					<!-- Mark controls -->
+					<div class="mt-5 flex items-center gap-2">
+						<button
+							class="icon-btn {current.mark === 'star' ? 'icon-on' : ''}"
+							aria-pressed={current.mark === 'star'}
+							title={current.mark === 'star' ? 'Remove star' : 'Star this blunder'}
+							onclick={() => toggleStar(current)}>★ Star</button
+						>
+						<button
+							class="icon-btn {current.mark === 'done' ? 'icon-on' : ''}"
+							aria-pressed={current.mark === 'done'}
+							title="Mark done and move on"
+							onclick={() => markDone(current)}>✓ Done</button
+						>
+					</div>
+
+					<!-- Note: an uncontrolled textarea re-seeded per blunder via {#key}; saves
+					     from blur (never an $effect), keyed by the move's id so each blunder
+					     keeps its own note. -->
+					{#key explainId(current)}
+						<div class="mt-4">
+							<label class="eyebrow mb-1 block" for="blunder-note">Your note</label>
+							<textarea
+								id="blunder-note"
+								class="note"
+								rows="2"
+								placeholder="What were you thinking here? What will you do differently?"
+								value={current.note ?? ''}
+								onblur={(e) => writeNote(current, e.currentTarget.value)}
+							></textarea>
+						</div>
+					{/key}
+
 					<!-- Navigation -->
-					<div class="mt-5 flex items-center justify-between">
+					<div class="mt-4 flex items-center justify-between">
 						<button class="btn" disabled={clamped === 0} onclick={() => go(-1)}>◀ Prev</button>
 						<span class="text-sm tabular-nums" style="color: {C.muted};"
 							>{clamped + 1} / {entries.length}</span
@@ -283,6 +457,11 @@
 		background: var(--surface-1);
 		padding: 1.25rem;
 		box-shadow: var(--shadow-1);
+		transition: opacity var(--dur);
+	}
+	/* Done mutes the card so the queue reads as worked-through, not gone. */
+	.card.done {
+		opacity: 0.55;
 	}
 	.eyebrow {
 		font-size: 0.7rem;
@@ -366,12 +545,34 @@
 		opacity: 0.4;
 	}
 
+	.icon-btn {
+		border-radius: 0.6rem;
+		border: 1px solid var(--border-strong);
+		background: var(--surface-1);
+		padding: 0.4rem 0.8rem;
+		font-size: 0.8rem;
+		font-weight: 600;
+		color: var(--text-2);
+		transition:
+			background var(--dur),
+			color var(--dur);
+	}
+	.icon-btn:hover {
+		background: var(--surface-2);
+	}
+	.icon-on {
+		background: var(--surface-3);
+		color: var(--text);
+		box-shadow: var(--shadow-1);
+	}
+
 	/* Roomier tap targets on touch devices; desktop keeps the compact controls. */
 	@media (pointer: coarse) {
 		.seg {
 			min-height: 2.5rem;
 		}
-		.btn {
+		.btn,
+		.icon-btn {
 			min-height: 2.75rem;
 		}
 	}
@@ -382,5 +583,35 @@
 		font-size: 0.9rem;
 		line-height: 1.6;
 		color: var(--text-2);
+	}
+
+	.note {
+		width: 100%;
+		border-radius: 0.6rem;
+		border: 1px solid var(--border-strong);
+		background: var(--surface-1);
+		padding: 0.5rem 0.7rem;
+		font-size: 0.85rem;
+		line-height: 1.5;
+		color: var(--text);
+		resize: vertical;
+	}
+	.note::placeholder {
+		color: var(--text-muted);
+	}
+	.note:focus {
+		outline: none;
+		border-color: var(--rating);
+	}
+
+	.saved-chip {
+		display: inline-flex;
+		align-items: center;
+		border-radius: 9999px;
+		padding: 0.25rem 0.7rem;
+		font-size: 0.75rem;
+		font-weight: 600;
+		background: color-mix(in srgb, var(--good) 16%, transparent);
+		color: var(--good);
 	}
 </style>
