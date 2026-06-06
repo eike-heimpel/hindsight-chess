@@ -39,9 +39,7 @@
 		process: 'var(--good)'
 	};
 
-	const trayLearnings = $derived(
-		thread.learnings.find((l) => l.ply === thread.currentPly)?.learnings ?? []
-	);
+	const trayLearnings = $derived(thread.currentLearnings);
 </script>
 
 <div class="flex min-h-dvh flex-col gap-3">

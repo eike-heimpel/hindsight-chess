@@ -46,22 +46,26 @@ export function parseEngineLine(
  * Validate the engine-grounded request base shared by /explain and
  * /coach/discuss. Pushes problems to `errors` and returns the raw record (so the
  * coach route can layer its extra fields onto the same object), or null when the
- * body isn't a JSON object.
+ * body isn't a JSON object. `minPly` defaults to 1 (a real move points at a move);
+ * the coach passes 0 for an explored line, which branches from the position after
+ * `ply` half-moves (ply 0 = the start).
  */
 export function parseEngineRequestBase(
 	value: unknown,
-	errors: string[]
+	errors: string[],
+	opts: { minPly?: number } = {}
 ): Record<string, unknown> | null {
 	if (!value || typeof value !== 'object') {
 		errors.push('body must be a JSON object');
 		return null;
 	}
 	const v = value as Record<string, unknown>;
+	const minPly = opts.minPly ?? 1;
 
 	if (!SOURCES.includes(v.source as ReviewSource)) errors.push('source is invalid');
 	if (typeof v.gameId !== 'string' || !GAME_ID.test(v.gameId)) errors.push('gameId is invalid');
-	if (typeof v.ply !== 'number' || !Number.isInteger(v.ply) || v.ply < 1) {
-		errors.push('ply must be a positive integer');
+	if (typeof v.ply !== 'number' || !Number.isInteger(v.ply) || v.ply < minPly) {
+		errors.push(`ply must be an integer >= ${minPly}`);
 	}
 	if (typeof v.fenBefore !== 'string' || !isValidFen(v.fenBefore)) {
 		errors.push('fenBefore must be a valid FEN');

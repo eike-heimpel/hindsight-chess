@@ -171,6 +171,29 @@ export function createExploreLine(opts?: { evaluate?: EvaluateFn }) {
 			return currentBestUci ? uciSquares(currentBestUci) : null;
 		},
 
+		/** Everything needed to hand the deepest move to the coach as an explored
+		 *  "what if" line: the full UCI line from the branch, and the discussed move's
+		 *  fenBefore/fenAfter/uci/san (the discussed move is the deepest one played).
+		 *  Null until at least one move has been made. */
+		get coachSubject(): {
+			line: string[];
+			fenBefore: string;
+			fenAfter: string;
+			playedUci: string;
+			san: string;
+		} | null {
+			if (!nodes.length) return null;
+			const last = nodes[nodes.length - 1];
+			const fenBefore = nodes.length >= 2 ? nodes[nodes.length - 2].fen : (baseFen ?? last.fen);
+			return {
+				line: nodes.map((n) => n.uci),
+				fenBefore,
+				fenAfter: last.fen,
+				playedUci: last.uci,
+				san: last.san
+			};
+		},
+
 		/** Fork a throwaway line from `fen`; `label` names where we branched. */
 		enter(fen: string, label: string) {
 			active = true;

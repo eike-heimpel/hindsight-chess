@@ -46,25 +46,40 @@
 
 	// The tray is captured per ply; flatten to a single takeaways list.
 	const takeaways = $derived(thread.learnings.flatMap((c) => c.learnings));
+
+	// Auto-scroll the thread to the newest turn so a multi-turn conversation always
+	// shows the latest reply without manual scrolling.
+	let convoEl = $state<HTMLDivElement | null>(null);
+	$effect(() => {
+		// Read both as deps so the effect re-runs on a new turn or a thinking toggle,
+		// then pin the scroll to the newest reply.
+		const atTurn = thread.messages.length + (thread.thinking ? 1 : 0);
+		if (convoEl && atTurn >= 0) convoEl.scrollTop = convoEl.scrollHeight;
+	});
 </script>
 
 <div class="flex min-h-dvh flex-col gap-3 sm:min-h-0">
-	<!-- Voice-first input — the primary affordance, always present and on top. -->
+	<!-- Voice-first input — the primary affordance, always present and on top. Once
+	     the coach has spoken it reframes as a follow-up so the live box reads live. -->
 	<div class="voice">
-		<label class="eyebrow" for="coach-read">Your read of this position</label>
+		<label class="eyebrow" for="coach-read">
+			{hasSpoken ? 'Keep the conversation going' : 'Your read of this position'}
+		</label>
 		<textarea
 			id="coach-read"
 			class="read"
 			bind:value={freeText}
 			rows="3"
-			placeholder="Tell me your read of this position…"
+			placeholder={hasSpoken
+				? 'Ask a follow-up, or tell me more…'
+				: 'Tell me your read of this position…'}
 			onkeydown={(e) => {
 				if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit();
 			}}
 		></textarea>
 		<div class="mt-2 flex flex-wrap items-center gap-2">
 			<button class="btn primary" onclick={submit} disabled={thread.thinking || !freeText.trim()}>
-				Talk it through
+				{hasSpoken ? 'Ask' : 'Talk it through'}
 			</button>
 			{#if thread.canGuide}
 				<button class="btn" onclick={() => thread.guideMe()} disabled={thread.thinking}>
@@ -76,7 +91,7 @@
 
 	<!-- Coach replies — silent until the player speaks or asks to be guided. -->
 	{#if hasSpoken || thread.thinking}
-		<div class="convo">
+		<div class="convo" bind:this={convoEl}>
 			{#each thread.messages as m, i (i)}
 				{#if m.role === 'coach'}
 					<div class="bubble coach"><p class="whitespace-pre-line">{m.content}</p></div>

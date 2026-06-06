@@ -7,7 +7,7 @@ import { validateThread } from './validateThread.ts';
  * valid thread + $unset isolation is covered by `persistence.db.test.ts`.
  *
  * Wire shape the client must match:
- *   POST /api/review/moves { ref, facet:'thread', value: { messages, learnings, status } }
+ *   POST /api/review/moves { ref, facet:'thread', value: { messages, learnings, choices, status } }
  */
 const valid = () => ({
 	messages: [
@@ -15,6 +15,7 @@ const valid = () => ({
 		{ role: 'player', content: 'Open file.' }
 	],
 	learnings: [{ level: 'principle', point: 'Rooks belong on open files.' }],
+	choices: ['It controls the file', 'It eyes the back rank'],
 	status: 'open'
 });
 
@@ -26,10 +27,10 @@ describe('validateThread', () => {
 		expect(out).toEqual(valid());
 	});
 
-	it('accepts empty messages/learnings with a valid status', () => {
+	it('accepts empty messages/learnings/choices with a valid status', () => {
 		const errors: string[] = [];
 		expect(
-			validateThread({ messages: [], learnings: [], status: 'wrapped' }, errors)
+			validateThread({ messages: [], learnings: [], choices: [], status: 'wrapped' }, errors)
 		).not.toBeNull();
 		expect(errors).toEqual([]);
 	});
@@ -83,8 +84,33 @@ describe('validateThread', () => {
 
 	it('rejects an invalid status', () => {
 		const errors: string[] = [];
-		validateThread({ messages: [], learnings: [], status: 'closed' }, errors);
+		validateThread({ messages: [], learnings: [], choices: [], status: 'closed' }, errors);
 		expect(errors.some((e) => e.includes('status must be'))).toBe(true);
+	});
+
+	it('rejects a non-array choices', () => {
+		const errors: string[] = [];
+		expect(
+			validateThread({ messages: [], learnings: [], choices: 'x', status: 'open' }, errors)
+		).toBeNull();
+		expect(errors.some((e) => e.includes('choices must be an array'))).toBe(true);
+	});
+
+	it('rejects too many / oversized choices', () => {
+		const errors: string[] = [];
+		validateThread(
+			{
+				messages: [],
+				learnings: [],
+				choices: Array.from({ length: 9 }, () => 'x'),
+				status: 'open'
+			},
+			errors
+		);
+		expect(errors.some((e) => e.includes('at most 8 items'))).toBe(true);
+		const e2: string[] = [];
+		validateThread({ messages: [], learnings: [], choices: ['x'.repeat(513)], status: 'open' }, e2);
+		expect(e2.some((e) => e.includes('at most 512 characters'))).toBe(true);
 	});
 
 	it('rejects a null/undefined payload', () => {

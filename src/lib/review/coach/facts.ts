@@ -57,13 +57,19 @@ export function buildTurningPointFacts(
 	const secondCp = tp.bestLines[1]?.cp ?? null;
 	const winSecondBest = secondCp === null ? null : winPercent(secondCp);
 
-	const principles = detectPrinciples({
-		moves: game.moves,
-		ply: tp.ply,
-		side,
-		fenBefore: tp.fenBefore,
-		moveNumber: f.moveNumber
-	});
+	// An EXPLORE moment is a hypothetical line, not a real game move: the game's
+	// move history (principles), opening name, and result don't describe it. Skip
+	// them so the coach grounds only on the position + engine lines in front of it.
+	const isExplore = tp.kind === 'explore';
+	const principles = isExplore
+		? []
+		: detectPrinciples({
+				moves: game.moves,
+				ply: tp.ply,
+				side,
+				fenBefore: tp.fenBefore,
+				moveNumber: f.moveNumber
+			});
 
 	return {
 		ply: tp.ply,
@@ -90,7 +96,7 @@ export function buildTurningPointFacts(
 		punishLineSan: f.replySanLine,
 		nature: f.nature,
 		principles,
-		opening: game.opening ?? null,
-		resultForPlayer: resultForPlayer(game, side)
+		opening: isExplore ? null : (game.opening ?? null),
+		resultForPlayer: isExplore ? null : resultForPlayer(game, side)
 	};
 }

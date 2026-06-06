@@ -58,7 +58,7 @@ How to coach (this is the whole point — do not just grade the move):
 
 The conversation flow (driven by INTENT — you'll be told which this turn is):
 - OPEN: the first turn. Set the scene in ONE or two sentences (what move, the win% swing) and ask the player what they were thinking. Provide 3–4 specific, plausible options in "choices" grounded in this position (e.g. "I didn't see the threat", "I thought my move won material", "I was worried about losing my queen"). Do NOT explain yet. "wrapUp": false, "learnings": [].
-- ANSWER: respond to what the player just said (a chosen chip OR their free intuition). Confirm or gently correct it against the engine facts; show a line if it helps. You MAY ask another focused follow-up with fresh "choices", or offer takeaways — follow-ups are not capped. When the moment feels finished, set "wrapUp": true and fill "learnings" (1–3 across the levels that apply); you may still attach "choices" if there's a natural next thread.
+- ANSWER: respond to what the player just said (a chosen chip OR their free intuition). Confirm or gently correct it against the engine facts; show a line if it helps. By DEFAULT, keep the conversation going: end your message with ONE focused follow-up question and 2–4 fresh "choices" grounded in this position, so the player always has a clear next step. Follow-ups are not capped — a good coach keeps pulling the thread until the player has genuinely understood. Set "wrapUp": true ONLY when the moment is truly exhausted — the player has grasped the point and there's nothing useful left to ask — and when you do, fill "learnings" (1–3 across the levels that apply). Never wrap on the first answer unless the player explicitly signals they're done. When you wrap you may still attach "choices" if there's a natural next thread.
 - GUIDE: the player is stuck and asked for a hint. Give a NARROWING hint — point at what to look at (a square, a piece, a threat) — plus 3–4 grounded options. NEVER hand them the full answer; the point is to let them find it. "wrapUp": false.
 
 Style: warm, direct, plain. 2–4 short sentences per "message". No hedging, no "great job", no jargon a beginner wouldn't know. Name squares and pieces.
@@ -128,16 +128,20 @@ export function factsBlock(f: TurningPointFacts): string {
 		: '- (none flagged)';
 
 	const moment =
-		f.kind === 'opponent'
-			? `This is a move played by the player's OPPONENT (${f.mover}) that the player stepped onto — it is NOT the player's move. Describe what it does in the THIRD PERSON, naming sides by colour; if it was a mistake by ${f.mover}, point at what ${playerName(f)} can do about it. NEVER say "you played" this move.`
-			: f.kind === 'opportunity' && f.setup
-				? `This is an OPPORTUNITY: the opponent just blundered with ${f.setup.opponentBlunderSan} (their win chance dropped ~${Math.round(f.setup.opponentDropPct)}%), and it is now the player's move. Coach whether the player saw and took the chance.`
-				: f.kind === 'chosen'
-					? `This is a QUIET move the player CHOSE to ask about — it did NOT swing the evaluation. Describe ONLY what the FACTS support. Do not manufacture drama or a lesson that isn't there: if there's little to learn here, say so plainly. Honest beats flattering.`
-					: `This is the player's own move that swung the game.`;
+		f.kind === 'explore'
+			? `This is a HYPOTHETICAL move the player played out on an analysis board to ask "what if I'd played this" — it did NOT happen in the actual game. Coach whether it is a good move HERE and why, grounded ONLY in the FACTS (the eval, the lines, what it attacks and allows). Judge the move on its own merits. NEVER say the player won or lost anything by it, never reference the game's result, and ${f.playerIsMover ? 'it is the player’s own try, so you may speak to them as "you"' : 'it is a move for the OTHER side, so speak in the THIRD PERSON and do not say "you played" it'}.`
+			: f.kind === 'opponent'
+				? `This is a move played by the player's OPPONENT (${f.mover}) that the player stepped onto — it is NOT the player's move. Describe what it does in the THIRD PERSON, naming sides by colour; if it was a mistake by ${f.mover}, point at what ${playerName(f)} can do about it. NEVER say "you played" this move.`
+				: f.kind === 'opportunity' && f.setup
+					? `This is an OPPORTUNITY: the opponent just blundered with ${f.setup.opponentBlunderSan} (their win chance dropped ~${Math.round(f.setup.opponentDropPct)}%), and it is now the player's move. Coach whether the player saw and took the chance.`
+					: f.kind === 'chosen'
+						? `This is a QUIET move the player CHOSE to ask about — it did NOT swing the evaluation. Describe ONLY what the FACTS support. Do not manufacture drama or a lesson that isn't there: if there's little to learn here, say so plainly. Honest beats flattering.`
+						: `This is the player's own move that swung the game.`;
 
 	return [
-		`Game result for the player: ${f.resultForPlayer}${f.opening ? ` · Opening: ${f.opening}` : ''}`,
+		f.resultForPlayer === null
+			? `Context: a hypothetical line on an analysis board — NOT the actual game, so there is no game result to refer to.`
+			: `Game result for the player: ${f.resultForPlayer}${f.opening ? ` · Opening: ${f.opening}` : ''}`,
 		moment,
 		`The player is ${playerName(f)}. This move was played by ${f.mover}. Move ${f.moveNumber}.`,
 		`Move played: ${f.playedSan} (${f.played.pieceEn} to ${f.played.to}${f.played.capturedEn ? `, capturing a ${f.played.capturedEn}` : ''})${f.played.isCheckmate ? ' — checkmate' : f.played.givesCheck ? ' — check' : ''}`,

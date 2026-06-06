@@ -279,8 +279,9 @@ describe('createCoachThread', () => {
 
 	/** Records every persist call, for the autosave assertions. */
 	function fakePersist() {
-		const calls: { ply: number; thread: ThreadState }[] = [];
-		const persist = (ply: number, thread: ThreadState) => calls.push({ ply, thread });
+		const calls: { ref: { ply: number; line?: string[] }; thread: ThreadState }[] = [];
+		const persist = (ref: { ply: number; line?: string[] }, thread: ThreadState) =>
+			calls.push({ ref, thread });
 		return { persist, calls };
 	}
 
@@ -298,7 +299,7 @@ describe('createCoachThread', () => {
 		await t.open(1); // variant A fires the opening turn → one persist
 		await flush();
 		expect(p.calls).toHaveLength(1);
-		expect(p.calls[0].ply).toBe(1);
+		expect(p.calls[0].ref.ply).toBe(1);
 		expect(p.calls[0].thread.status).toBe('open');
 		expect(p.calls[0].thread.messages).toHaveLength(1);
 		expect(p.calls[0].thread.learnings).toEqual([{ level: 'principle', point: 'take the center' }]);
@@ -350,6 +351,7 @@ describe('createCoachThread', () => {
 				{ role: 'player', content: 'for the center' }
 			],
 			learnings: [{ level: 'principle', point: 'take the center' }],
+			choices: [],
 			status: 'open'
 		};
 		const t = createCoachThread({
@@ -358,7 +360,7 @@ describe('createCoachThread', () => {
 			variant: 'A', // would normally fire intent 'open'
 			discuss: d.discuss,
 			evaluate: fakeEngine([ev(20, 'e2e4')]).evaluate,
-			loadThread: (ply) => (ply === 1 ? saved : undefined)
+			loadThread: (ref) => (ref.ply === 1 ? saved : undefined)
 		});
 		await t.open(1);
 		await flush();
@@ -379,6 +381,7 @@ describe('createCoachThread', () => {
 			loadThread: () => ({
 				messages: [{ role: 'coach', content: 'wrapped up' }],
 				learnings: [],
+				choices: [],
 				status: 'wrapped'
 			})
 		});

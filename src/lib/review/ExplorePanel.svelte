@@ -9,15 +9,24 @@
 	 * quality-coloured SAN chips, and a verdict on your last move. The board's
 	 * live arrow already shows the engine's preferred move, so the verdict here
 	 * deliberately omits a "best was".
+	 *
+	 * Once at least one move is played the line can be KEPT: starred, or handed to
+	 * the coach as a "what if I'd played this" conversation anchored to the branch.
 	 */
 	let {
 		baseLabel,
 		nodes,
-		evaluating
+		evaluating,
+		starred,
+		onStar,
+		onTalk
 	}: {
 		baseLabel: string;
 		nodes: ExploreNode[];
 		evaluating: boolean;
+		starred: boolean;
+		onStar: () => void;
+		onTalk: () => void;
 	} = $props();
 
 	const last = $derived(nodes.at(-1) ?? null);
@@ -58,6 +67,20 @@
 	<p class="mt-3 text-xs" style="color: {C.muted};">Weighing your move…</p>
 {/if}
 
+<!-- Keep this line: star it, or talk the last move through with the coach. Only
+     once a move has been played (an empty branch has nothing to keep). -->
+{#if nodes.length}
+	<div class="mt-3 flex flex-wrap items-center gap-2">
+		<button
+			class="keep-btn {starred ? 'keep-on' : ''}"
+			aria-pressed={starred}
+			title={starred ? 'Remove star' : 'Star this line'}
+			onclick={onStar}>★ Star line</button
+		>
+		<button class="keep-btn talk" onclick={onTalk}>Talk through this move ↪</button>
+	</div>
+{/if}
+
 <style>
 	.banner {
 		border-radius: 0.85rem;
@@ -76,5 +99,42 @@
 		font-size: 0.8125rem;
 		font-variant-numeric: tabular-nums;
 		color: var(--text);
+	}
+
+	.keep-btn {
+		border-radius: 0.6rem;
+		border: 1px solid var(--border-strong);
+		background: var(--surface-1);
+		padding: 0.45rem 0.8rem;
+		font-size: 0.82rem;
+		font-weight: 600;
+		color: var(--text-2);
+		transition:
+			background var(--dur),
+			color var(--dur);
+	}
+	.keep-btn:hover {
+		background: var(--surface-2);
+		color: var(--text);
+	}
+	.keep-btn.keep-on {
+		background: var(--surface-3);
+		color: var(--text);
+		box-shadow: var(--shadow-1);
+	}
+	.keep-btn.talk {
+		background: var(--brand);
+		border-color: transparent;
+		color: var(--bg);
+	}
+	.keep-btn.talk:hover {
+		filter: brightness(1.05);
+		background: var(--brand);
+		color: var(--bg);
+	}
+	@media (pointer: coarse) {
+		.keep-btn {
+			min-height: 2.75rem;
+		}
 	}
 </style>

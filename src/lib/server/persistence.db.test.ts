@@ -114,6 +114,7 @@ describe('userMoveState facets', () => {
 			{ role: 'player', content: 'The e5 pawn.' }
 		],
 		learnings: [{ level: 'tactical', point: 'Count defenders before capturing.' }],
+		choices: [],
 		status: 'wrapped',
 		updatedAt: new Date()
 	});

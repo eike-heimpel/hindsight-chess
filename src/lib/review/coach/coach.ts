@@ -39,9 +39,11 @@ function coerce(value: unknown): DiscussResponse {
 		: [];
 
 	// `wrapUp` is the contract field; accept the legacy `done` as an alias. Default
-	// advisory-false (the input never hides), unless there are no choices to offer.
+	// advisory-false: a turn only wraps when the model EXPLICITLY says so. (We used
+	// to auto-wrap on "no choices returned", which made one terse reply read as the
+	// end of the conversation — the opposite of a continuable thread.)
 	const rawWrap = typeof v.wrapUp === 'boolean' ? v.wrapUp : v.done;
-	const wrapUp = typeof rawWrap === 'boolean' ? rawWrap : choices.length === 0;
+	const wrapUp = typeof rawWrap === 'boolean' ? rawWrap : false;
 
 	return { message, show, learnings, choices, wrapUp };
 }

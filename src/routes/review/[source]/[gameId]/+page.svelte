@@ -9,7 +9,8 @@
 	import { createExploreLine } from '$lib/client/exploreLine.svelte';
 	import { createCoachThread } from '$lib/client/coachThread.svelte';
 	import { selectTurningPoints } from '$lib/review/coach/moments';
-	import type { MoveState } from '$lib/server/userMoveState';
+	import { applyMove } from '$lib/chess/rules';
+	import type { GameAlternative, MoveRef, MoveState } from '$lib/server/userMoveState';
 	import { type MoveAnalysis } from '$lib/review/analysis';
 	import { C } from '$lib/review/charts/palette';
 	import {
@@ -64,31 +65,36 @@
 
 	// Star / note write straight from the event handler (never an $effect), against
 	// the move currently in view. Both patch `moveStates` optimistically first.
-	function moveRef(p: number) {
+	function moveRef(p: number): MoveRef {
 		return { source: game.source, gameId: game.gameId, ply: p };
 	}
 
-	function toggleStar() {
-		if (ply < 1) return;
-		const starred = currentState?.mark === 'star';
-		moveStates = {
-			...moveStates,
-			[ply]: { ...moveStates[ply], mark: starred ? undefined : 'star' }
-		};
-		if (starred) {
-			// Toggle-off clears just the mark facet so a coexisting note survives.
-			void fetch('/api/review/moves', {
-				method: 'DELETE',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ ref: moveRef(ply), facet: 'mark' })
-			});
+	/** Is this ref (real move or explored alternative) starred? */
+	function isStarred(ref: MoveRef): boolean {
+		return ref.line
+			? altMarks[altKey(ref.ply, ref.line)] === 'star'
+			: moveStates[ref.ply]?.mark === 'star';
+	}
+
+	/** Toggle the star on any ref — a real move (`moveStates`) or an explored
+	 *  alternative (`altMarks`). Optimistic, then fire-and-forget the write; a
+	 *  toggle-off clears just the mark facet so a coexisting note/thread survives. */
+	function toggleStarRef(ref: MoveRef) {
+		const starred = isStarred(ref);
+		if (ref.line) {
+			const k = altKey(ref.ply, ref.line);
+			altMarks = { ...altMarks, [k]: starred ? undefined : 'star' };
 		} else {
-			void fetch('/api/review/moves', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ ref: moveRef(ply), facet: 'mark', value: 'star' })
-			});
+			moveStates = {
+				...moveStates,
+				[ref.ply]: { ...moveStates[ref.ply], mark: starred ? undefined : 'star' }
+			};
 		}
+		void fetch('/api/review/moves', {
+			method: starred ? 'DELETE' : 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(starred ? { ref, facet: 'mark' } : { ref, facet: 'mark', value: 'star' })
+		});
 	}
 
 	function writeNote(p: number, text: string) {
@@ -129,18 +135,46 @@
 	// the board uses. The thread captures `analysis` by value, so `onAnalyzed`
 	// (above) rebuilds it when a fresh analysis lands — an event, not an $effect.
 	const explore = createExploreLine();
+	// The real game ply the live explore branch was entered at — the branch point
+	// for any "what if" line the player plays out and then coaches / stars.
+	let exploreFromPly = $state(0);
+
 	// Resume a saved conversation on open: hand the thread the persisted facet for
-	// a ply (mapped to its {messages,learnings,status} shape). `data.moveStates`
-	// seeds once per mount; the default persist transport handles the write-back.
+	// the subject's ref. Real moves key by ply (`data.moveStates`); explored
+	// alternatives key by `${ply}:${line}` (`data.alternatives`). Both seed once per
+	// mount; the default persist transport handles the write-back.
 	const savedThreads = untrack(() => data.moveStates ?? {});
-	const loadThread = (p: number) => {
-		const t = savedThreads[p]?.thread;
-		return t ? { messages: t.messages, learnings: t.learnings, status: t.status } : undefined;
+	const altKey = (ply: number, line: string[]) => `${ply}:${line.join('-')}`;
+	const savedAltThreads = untrack(() => {
+		const out: Record<string, NonNullable<MoveState['thread']>> = {};
+		for (const a of data.alternatives ?? []) {
+			if (a.state.thread) out[altKey(a.ply, a.line)] = a.state.thread;
+		}
+		return out;
+	});
+	const loadThread = (ref: MoveRef) => {
+		const t = ref.line ? savedAltThreads[altKey(ref.ply, ref.line)] : savedThreads[ref.ply]?.thread;
+		return t
+			? { messages: t.messages, learnings: t.learnings, choices: t.choices ?? [], status: t.status }
+			: undefined;
 	};
 	const makeThread = () =>
 		createCoachThread({ game, analysis: session.analysis, variant: 'B', explore, loadThread });
 	let thread = $state(makeThread());
 	const active = $derived(thread.currentPly !== null);
+
+	// Explored alternatives the player has saved (starred / talked through), shown
+	// as a revisitable list. Mark state is tracked locally (keyed by `${ply}:${line}`)
+	// for optimistic star toggles; seeded from the load.
+	let alternatives = $state<GameAlternative[]>(untrack(() => data.alternatives ?? []));
+	let altMarks = $state<Record<string, MoveState['mark']>>(
+		untrack(() => {
+			const out: Record<string, MoveState['mark']> = {};
+			for (const a of data.alternatives ?? [])
+				if (a.state.mark) out[altKey(a.ply, a.line)] = a.state.mark;
+			return out;
+		})
+	);
 
 	// The coached side — derived from the board orientation the loader resolved for
 	// `me` (white-on-bottom ⇒ we're White). Turning points are auto-flagged over the
@@ -192,6 +226,85 @@
 		thread.open(ply);
 	}
 
+	// Enter the throwaway analysis branch from the current position, remembering the
+	// ply we branched at so any line we keep is anchored to it.
+	function enterExplore() {
+		exploreFromPly = ply;
+		explore.enter(fen, moveLabel(ply));
+	}
+
+	// "Talk through this move" from inside the explore branch: hand the deepest
+	// explored move to the coach as a 'what if' line anchored to the branch ply.
+	// Exit the branch first — the coach now owns the board (inline playback), so
+	// staying in `explore` would let the player keep mutating the line being coached.
+	function talkThroughExplore() {
+		const subj = explore.coachSubject;
+		if (!subj) return;
+		const branchPly = exploreFromPly;
+		ensureAlternative(branchPly, subj.line);
+		explore.exit();
+		thread.openExplore({ ply: branchPly, ...subj });
+	}
+
+	// Reopen a saved alternative: replay its UCI line from the branch position to
+	// rebuild the discussed move, then coach it (its saved conversation resumes via
+	// `loadThread`). Pure chess.js replay — the server re-validates on the next turn.
+	function reopenAlternative(alt: { ply: number; line: string[] }) {
+		if (explore.active) explore.exit();
+		if (active) thread.finish();
+		let fenCur = alt.ply === 0 ? (moves[0]?.fenBefore ?? START_FEN) : moves[alt.ply - 1].fenAfter;
+		let fenBefore = fenCur;
+		let san = '';
+		for (const uci of alt.line) {
+			fenBefore = fenCur;
+			const applied = applyMove(fenCur, uci);
+			fenCur = applied.fen;
+			san = applied.move.san;
+		}
+		thread.openExplore({
+			ply: alt.ply,
+			line: alt.line,
+			fenBefore,
+			fenAfter: fenCur,
+			playedUci: alt.line[alt.line.length - 1],
+			san
+		});
+	}
+
+	// The live explored line's ref (anchored to the branch ply) and its star state,
+	// for the explore panel's star control.
+	const exploreLineRef = $derived<MoveRef | null>(
+		explore.coachSubject
+			? {
+					source: game.source,
+					gameId: game.gameId,
+					ply: exploreFromPly,
+					line: explore.coachSubject.line
+				}
+			: null
+	);
+	const exploreStarred = $derived(exploreLineRef ? isStarred(exploreLineRef) : false);
+	function starExplore() {
+		if (!exploreLineRef) return;
+		ensureAlternative(exploreLineRef.ply, exploreLineRef.line!);
+		toggleStarRef(exploreLineRef);
+	}
+
+	/** Add an explored line to the in-session list if it isn't there yet, so a line
+	 *  the player just kept shows up without a reload (the server already has it). */
+	function ensureAlternative(p: number, line: string[]) {
+		const k = altKey(p, line);
+		if (alternatives.some((a) => altKey(a.ply, a.line) === k)) return;
+		alternatives = [...alternatives, { ply: p, line, state: {} }];
+	}
+
+	// Label an alternative for the saved-lines list: "12… Bxh7 (+2 more)".
+	function altLabel(alt: { ply: number; line: string[] }): string {
+		const fromN = Math.ceil(alt.ply / 2);
+		const branch = alt.ply === 0 ? 'start' : `${fromN}${alt.ply % 2 === 1 ? '.' : '…'}`;
+		return `from ${branch} · ${alt.line.length} move${alt.line.length === 1 ? '' : 's'}`;
+	}
+
 	function clockAt(color: 'w' | 'b'): string {
 		for (let k = ply - 1; k >= 0; k--) {
 			if (moves[k].color === color) return fmtClock(moves[k].clockMs);
@@ -239,13 +352,23 @@
 		return `${n}${p % 2 === 1 ? '.' : '…'} ${moves[p - 1].san}`;
 	}
 
-	// The board, eval bar and best-move arrow read from the branch while it's
-	// active, otherwise from the replay. (Variant B never sources the board from the
-	// thread — the coach's playback enters `explore`, so this covers it.)
-	const boardFen = $derived(explore.active ? explore.currentFen : fen);
-	const boardLastMove = $derived(explore.active ? explore.lastMove : lastMove);
-	const boardArrow = $derived(explore.active ? explore.bestArrow : bestArrow);
-	const boardWhiteWin = $derived(explore.active ? explore.whiteWin : whiteWin);
+	// The board, eval bar and best-move arrow read from: the live explore branch
+	// while it's active; else the coach thread while it's coaching an explored line
+	// (`ownsBoard` — inline playback, the branch is exited); else the game replay.
+	// For real-move coaching the thread's show-lines enter `explore`, so that path
+	// is covered by the first branch.
+	const boardFen = $derived(
+		explore.active ? explore.currentFen : thread.ownsBoard ? thread.boardFen : fen
+	);
+	const boardLastMove = $derived(
+		explore.active ? explore.lastMove : thread.ownsBoard ? thread.boardLast : lastMove
+	);
+	const boardArrow = $derived(
+		explore.active ? explore.bestArrow : thread.ownsBoard ? thread.boardArrow : bestArrow
+	);
+	const boardWhiteWin = $derived(
+		explore.active ? explore.whiteWin : thread.ownsBoard ? thread.whiteWin : whiteWin
+	);
 </script>
 
 <svelte:head><title>{game.white.username} vs {game.black.username}</title></svelte:head>
@@ -334,9 +457,7 @@
 
 					{#if !explore.active && !active}
 						<div class="mt-2 flex justify-center">
-							<button class="branch-enter" onclick={() => explore.enter(fen, moveLabel(ply))}>
-								Play it out from here ↪
-							</button>
+							<button class="branch-enter" onclick={enterExplore}> Play it out from here ↪ </button>
 						</div>
 					{/if}
 				</div>
@@ -348,6 +469,9 @@
 						baseLabel={explore.baseLabel}
 						nodes={explore.nodes}
 						evaluating={explore.evaluating}
+						starred={exploreStarred}
+						onStar={starExplore}
+						onTalk={talkThroughExplore}
 					/>
 				{:else if currentMove && !active}
 					<div class="mt-4">
@@ -409,7 +533,7 @@
 								class="icon-btn {currentState?.mark === 'star' ? 'icon-on' : ''}"
 								aria-pressed={currentState?.mark === 'star'}
 								title={currentState?.mark === 'star' ? 'Remove star' : 'Star this move'}
-								onclick={toggleStar}>★ Star</button
+								onclick={() => toggleStarRef(moveRef(ply))}>★ Star</button
 							>
 						</div>
 						{#key ply}
@@ -435,26 +559,44 @@
 				style="max-height: calc(100svh - 2rem);"
 			>
 				{#if active}
-					<!-- Coach open: the reveal collapses to a peek above the conversation so the
-					     player can check it without losing their place; the note goes read-only. -->
-					{#if session.explanations[ply]}
-						<Disclosure
-							storageKey="review:reveal-peek"
-							showLabel="What happened"
-							hideLabel="Hide what happened"
-						>
-							<p class="text-sm leading-relaxed whitespace-pre-line" style="color: {C.body};">
-								{session.explanations[ply]}
-							</p>
-						</Disclosure>
-					{/if}
-					{#if currentState?.note?.text}
-						<div class="card py-2.5">
-							<div class="eyebrow mb-1">Your note</div>
-							<p class="text-sm whitespace-pre-line" style="color: {C.body};">
-								{currentState.note.text}
-							</p>
+					{#if thread.ownsBoard}
+						<!-- Coaching a hypothetical "what if" line — the real move's explanation /
+						     note don't describe it, so we show its own banner + star instead. -->
+						<div class="alt-head flex items-center justify-between gap-2 py-2.5">
+							<span class="text-sm" style="color: {C.body};">
+								A line you explored — not the actual game.
+							</span>
+							{#if thread.currentRef}
+								<button
+									class="icon-btn {isStarred(thread.currentRef) ? 'icon-on' : ''}"
+									aria-pressed={isStarred(thread.currentRef)}
+									title={isStarred(thread.currentRef) ? 'Remove star' : 'Star this line'}
+									onclick={() => toggleStarRef(thread.currentRef!)}>★</button
+								>
+							{/if}
 						</div>
+					{:else}
+						<!-- Coach open: the reveal collapses to a peek above the conversation so the
+						     player can check it without losing their place; the note goes read-only. -->
+						{#if session.explanations[ply]}
+							<Disclosure
+								storageKey="review:reveal-peek"
+								showLabel="What happened"
+								hideLabel="Hide what happened"
+							>
+								<p class="text-sm leading-relaxed whitespace-pre-line" style="color: {C.body};">
+									{session.explanations[ply]}
+								</p>
+							</Disclosure>
+						{/if}
+						{#if currentState?.note?.text}
+							<div class="card py-2.5">
+								<div class="eyebrow mb-1">Your note</div>
+								<p class="text-sm whitespace-pre-line" style="color: {C.body};">
+									{currentState.note.text}
+								</p>
+							</div>
+						{/if}
 					{/if}
 					{#key thread.currentPly}
 						<CoachPanel {thread} />
@@ -490,6 +632,30 @@
 					{:else if session.cacheNote}
 						<div class="card py-2.5">
 							<p class="text-xs" style="color: var(--warn);">{session.cacheNote}</p>
+						</div>
+					{/if}
+
+					<!-- Saved "what if" lines — the alternatives the player explored and kept
+					     (starred or talked through). Click to replay the line and reopen its
+					     coach conversation. -->
+					{#if alternatives.length}
+						<div class="card py-2.5">
+							<div class="eyebrow mb-1.5">Lines you explored</div>
+							<ul class="grid gap-1.5">
+								{#each alternatives as alt (altKey(alt.ply, alt.line))}
+									<li>
+										<button class="alt-row" onclick={() => reopenAlternative(alt)}>
+											<span class="flex items-center gap-1.5">
+												{#if altMarks[altKey(alt.ply, alt.line)] === 'star'}<span class="alt-star"
+														>★</span
+													>{/if}
+												<span class="text-sm" style="color: {C.ink};">{alt.line.join(' ')}</span>
+											</span>
+											<span class="text-xs" style="color: {C.muted};">{altLabel(alt)}</span>
+										</button>
+									</li>
+								{/each}
+							</ul>
 						</div>
 					{/if}
 
@@ -585,12 +751,44 @@
 		background: var(--surface-2);
 		color: var(--text);
 	}
+
+	/* Header strip above the coach when discussing an explored "what if" line. */
+	.alt-head {
+		border-radius: 0.85rem;
+		border: 1px dashed var(--border-strong);
+		background: var(--surface-1);
+		padding-inline: 0.85rem;
+	}
+
+	/* A saved explored line in the "Lines you explored" list. */
+	.alt-row {
+		display: flex;
+		width: 100%;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+		border-radius: 0.6rem;
+		border: 1px solid var(--border);
+		background: var(--surface-1);
+		padding: 0.4rem 0.6rem;
+		text-align: left;
+		font-variant-numeric: tabular-nums;
+		transition: background var(--dur-fast);
+	}
+	.alt-row:hover {
+		background: var(--surface-2);
+	}
+	.alt-star {
+		color: var(--rating);
+	}
+
 	@media (pointer: coarse) {
 		.branch-enter,
 		.talk,
 		.regen,
 		.btn,
-		.icon-btn {
+		.icon-btn,
+		.alt-row {
 			min-height: 2.75rem;
 		}
 	}

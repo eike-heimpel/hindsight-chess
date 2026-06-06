@@ -58,6 +58,7 @@ export type MoveState = {
 	thread?: {
 		messages: DiscussTurn[];
 		learnings: Learning[];
+		choices: string[];
 		status: 'open' | 'wrapped';
 		updatedAt: Date;
 	};

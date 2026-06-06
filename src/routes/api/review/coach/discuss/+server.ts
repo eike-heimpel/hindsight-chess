@@ -1,10 +1,12 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { requireUser } from '$lib/server/auth';
+import { applyMove } from '$lib/chess/rules';
 import type { Side } from '$lib/chess/types';
 import type { ReviewGame } from '$lib/review/types';
 import type { GameAnalysis } from '$lib/review/analysis';
-import { parseEngineRequestBase } from '$lib/review/explainRequest';
+import { parseEngineRequestBase, UCI } from '$lib/review/explainRequest';
+import { MAX_LINE_PLIES } from '$lib/server/moveRefRequest';
 import { getReviewGame } from '$lib/server/reviewGames';
 import { ownedSide } from '$lib/server/userMoveState';
 import { getAnalysis } from '$lib/server/reviewAnalysis';
@@ -32,6 +34,15 @@ import type {
  * may not assert this is a "mistake" or "opportunity". After the LLM speaks, a
  * cheap grounding gate (one capped, un-re-gated retry) catches hallucinated
  * pieces/moves/evals before the reply leaves the server.
+ *
+ * EXPLORE moments (a `line` in the body) coach a hypothetical "what if I'd played
+ * this" position from the analysis board. The position isn't a stored move, so
+ * instead of matching `moves[ply-1]` the server REPLAYS the UCI line from its own
+ * stored position at the `ply` branch — every move must be legal, and the replay's
+ * last position/move must match the client's `fenBefore`/`playedUci`. That keeps
+ * the same posture (the server never trusts a client-asserted position), only the
+ * anchor changes. The moment is always `kind:'explore'`: the coach judges the move
+ * on its merits and never references the game's result.
  */
 const INTENTS: CoachIntent[] = ['open', 'answer', 'guide'];
 
@@ -49,19 +60,29 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	const game = await getReviewGame(req.source, req.gameId);
 	if (!game) throw error(404, 'unknown game');
 
-	const stored = game.moves[req.ply - 1];
-	if (!stored) throw error(400, `ply ${req.ply} is out of range for this game`);
-	if (stored.fenBefore !== req.fenBefore || stored.uci !== req.playedUci) {
-		throw error(400, 'fenBefore/playedUci do not match the stored move');
-	}
-
 	const side = ownedSide(game, user.reviewAccounts);
 	if (!side) throw error(403, 'not your game');
 
 	await assertCanDiscuss(user.userId, { source: req.source, gameId: req.gameId, ply: req.ply });
 
-	const analysis = await getAnalysis(req.source, req.gameId);
-	const { kind, setup } = deriveMoment(game, analysis, req.ply, side);
+	let kind: MomentKind;
+	let setup: TurningPointInput['setup'];
+	if (req.line) {
+		// Explored "what if" line — replay it from our own stored position to derive
+		// + validate fenBefore/playedUci (never trust the client's FEN). The moment
+		// is always 'explore': the coach judges the move, not the game.
+		resolveExploreLine(game, req);
+		kind = 'explore';
+		setup = null;
+	} else {
+		const stored = game.moves[req.ply - 1];
+		if (!stored) throw error(400, `ply ${req.ply} is out of range for this game`);
+		if (stored.fenBefore !== req.fenBefore || stored.uci !== req.playedUci) {
+			throw error(400, 'fenBefore/playedUci do not match the stored move');
+		}
+		const analysis = await getAnalysis(req.source, req.gameId);
+		({ kind, setup } = deriveMoment(game, analysis, req.ply, side));
+	}
 
 	const tp: TurningPointInput = {
 		ply: req.ply,
@@ -146,6 +167,31 @@ function deriveMoment(
 	return { kind: 'chosen', setup: null };
 }
 
+/** Replay an explored line from the stored game's position at the `ply` branch
+ *  (ply 0 = the start position). Asserts every move is legal AND that the replay's
+ *  final fenBefore/playedUci match what the client sent — so the engine numbers in
+ *  the body describe the exact position we'll coach. Throws 400 on any mismatch;
+ *  the server never trusts a client-asserted FEN. */
+function resolveExploreLine(game: ReviewGame, req: CoachTurnRequest): void {
+	const line = req.line!;
+	if (req.ply > game.moves.length) {
+		throw error(400, `ply ${req.ply} is out of range for this game`);
+	}
+	let fen = req.ply === 0 ? game.moves[0]!.fenBefore : game.moves[req.ply - 1]!.fenAfter;
+	let fenBeforeLast = fen;
+	for (let i = 0; i < line.length; i++) {
+		fenBeforeLast = fen;
+		try {
+			fen = applyMove(fen, line[i]!).fen;
+		} catch {
+			throw error(400, `explored line has an illegal move at index ${i} (${line[i]})`);
+		}
+	}
+	if (fenBeforeLast !== req.fenBefore || line[line.length - 1] !== req.playedUci) {
+		throw error(400, 'fenBefore/playedUci do not match the replayed line');
+	}
+}
+
 function parseHistory(value: unknown, errors: string[]): DiscussTurn[] {
 	if (value === undefined) return [];
 	if (!Array.isArray(value)) {
@@ -162,12 +208,24 @@ function parseHistory(value: unknown, errors: string[]): DiscussTurn[] {
 
 function parseRequest(value: unknown): { value: CoachTurnRequest } | { errors: string[] } {
 	const errors: string[] = [];
-	const v = parseEngineRequestBase(value, errors);
+	// An explored line (`line` present) branches from the position after `ply`
+	// half-moves, so ply 0 (the start) is valid; a real move points at a move.
+	const hasLine = !!value && typeof value === 'object' && 'line' in value;
+	const v = parseEngineRequestBase(value, errors, { minPly: hasLine ? 0 : 1 });
 	if (!v) return { errors };
 
 	if (!INTENTS.includes(v.intent as CoachIntent)) errors.push('intent is invalid');
 	if (v.playerText !== undefined && typeof v.playerText !== 'string') {
 		errors.push('playerText must be a string');
+	}
+	if (v.line !== undefined) {
+		if (!Array.isArray(v.line) || v.line.length === 0) {
+			errors.push('line, if given, must be a non-empty array');
+		} else if (v.line.length > MAX_LINE_PLIES) {
+			errors.push(`line must have at most ${MAX_LINE_PLIES} moves`);
+		} else if (!v.line.every((m) => typeof m === 'string' && UCI.test(m))) {
+			errors.push('line must be an array of UCI moves');
+		}
 	}
 	parseHistory(v.history, errors);
 

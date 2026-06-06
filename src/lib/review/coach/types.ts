@@ -23,13 +23,15 @@ export type PrincipleSignal = {
 
 type AttackerEn = { pieceEn: string; square: string };
 
-/** Why this moment is being discussed. All four are about a move the PLAYER made,
- *  except 'opponent': 'mistake' = the player's own slip; 'opportunity' = the
- *  opponent just blundered and it's the player's turn to punish; 'chosen' = a
- *  quiet move the player picked themselves (no eval swing); 'opponent' = a move
- *  the OPPONENT made that the player stepped onto — discussed in the third person,
- *  never as "you played". */
-export type MomentKind = 'mistake' | 'opportunity' | 'chosen' | 'opponent';
+/** Why this moment is being discussed. The first four are moments from the REAL
+ *  game: 'mistake' = the player's own slip; 'opportunity' = the opponent just
+ *  blundered and it's the player's turn to punish; 'chosen' = a quiet move the
+ *  player picked themselves (no eval swing); 'opponent' = a move the OPPONENT made
+ *  that the player stepped onto — discussed in the third person, never as "you
+ *  played". 'explore' is the odd one out: a HYPOTHETICAL move the player played out
+ *  on the analysis board, NOT something that happened in the game — coach whether
+ *  it's good and why, never referencing the game's result. */
+export type MomentKind = 'mistake' | 'opportunity' | 'chosen' | 'opponent' | 'explore';
 
 /** Everything the coach LLM is allowed to know about one moment. Built server-
  *  side from the stored game + engine lines. All evals are pre-rendered to text
@@ -88,7 +90,9 @@ export type TurningPointFacts = {
 	};
 	principles: PrincipleSignal[];
 	opening: string | null;
-	resultForPlayer: 'win' | 'loss' | 'draw';
+	/** The game's result for the player — or null on an 'explore' moment, where a
+	 *  hypothetical line has no result and the coach must not reference one. */
+	resultForPlayer: 'win' | 'loss' | 'draw' | null;
 };
 
 /** One conversational turn already exchanged, for context on follow-ups. Holds
@@ -136,10 +140,17 @@ export type DiscussResponse = {
 export type CoachTurnRequest = {
 	source: ReviewSource;
 	gameId: string;
-	/** Identity → re-derived server-side. */
+	/** Identity → re-derived server-side. For a real move, the move's ply; for an
+	 *  explored alternative (`line` present), the branch point (0 = the start). */
 	ply: number;
+	/** Present → this is an EXPLORED alternative, the UCI line from the `ply` branch.
+	 *  The server replays it from its own stored position to derive + validate
+	 *  `fenBefore`/`playedUci` (the last move of the line is the one being coached),
+	 *  so the client can't assert an unreachable position. Absent → a real move,
+	 *  validated against `moves[ply-1]`. */
+	line?: string[];
 	fenBefore: string;
-	/** Validated vs the stored game's moves[ply-1]. */
+	/** Validated vs the stored move (real) or the replayed line's last move (explore). */
 	playedUci: string;
 	bestLines: EngineLine[];
 	/** Engine numbers, trusted (like explain). Null when the move ended the game. */

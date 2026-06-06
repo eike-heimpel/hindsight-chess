@@ -5,7 +5,7 @@ import { getUser } from '$lib/server/auth';
 import { getReviewGame } from '$lib/server/reviewGames';
 import { getAnalysis } from '$lib/server/reviewAnalysis';
 import { listExplanations } from '$lib/server/reviewExplanations';
-import { getGameMoveStates, ownedSide } from '$lib/server/userMoveState';
+import { getGameAlternatives, getGameMoveStates, ownedSide } from '$lib/server/userMoveState';
 import type { ReviewSource } from '$lib/review/types';
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
@@ -14,10 +14,11 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	if (!user) throw redirect(303, '/login');
 
 	const source = params.source as ReviewSource;
-	const [game, analysis, moveStates] = await Promise.all([
+	const [game, analysis, moveStates, alternatives] = await Promise.all([
 		getReviewGame(source, params.gameId),
 		getAnalysis(source, params.gameId),
-		getGameMoveStates(user.userId, source, params.gameId)
+		getGameMoveStates(user.userId, source, params.gameId),
+		getGameAlternatives(user.userId, source, params.gameId)
 	]);
 	if (!game) throw error(404, 'game not found');
 
@@ -45,5 +46,5 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		? Math.max(0, Math.min(game.moves.length, plyParam))
 		: 0;
 
-	return { game, analysis, orientation, me, explanations, initialPly, moveStates };
+	return { game, analysis, orientation, me, explanations, initialPly, moveStates, alternatives };
 };

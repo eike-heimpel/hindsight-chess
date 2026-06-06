@@ -8,6 +8,8 @@ const MAX_THREAD_MESSAGES = 60;
 const MAX_THREAD_CONTENT_LENGTH = 4096;
 const MAX_THREAD_LEARNINGS = 20;
 const MAX_LEARNING_POINT_LENGTH = 1024;
+const MAX_THREAD_CHOICES = 8;
+const MAX_CHOICE_LENGTH = 512;
 const THREAD_ROLES: DiscussTurn['role'][] = ['coach', 'player'];
 const LEARNING_LEVELS: Learning['level'][] = ['tactical', 'principle', 'process'];
 const THREAD_STATUSES: NonNullable<MoveState['thread']>['status'][] = ['open', 'wrapped'];
@@ -15,6 +17,7 @@ const THREAD_STATUSES: NonNullable<MoveState['thread']>['status'][] = ['open', '
 export type ThreadPayload = {
 	messages: DiscussTurn[];
 	learnings: Learning[];
+	choices: string[];
 	status: NonNullable<MoveState['thread']>['status'];
 };
 
@@ -67,6 +70,21 @@ export function validateThread(value: unknown, errors: string[]): ThreadPayload 
 		});
 	}
 
+	if (!Array.isArray(v.choices)) {
+		errors.push('value.choices must be an array');
+	} else {
+		if (v.choices.length > MAX_THREAD_CHOICES) {
+			errors.push(`value.choices must have at most ${MAX_THREAD_CHOICES} items`);
+		}
+		v.choices.forEach((c, i) => {
+			if (typeof c !== 'string') {
+				errors.push(`value.choices[${i}] must be a string`);
+			} else if (c.length > MAX_CHOICE_LENGTH) {
+				errors.push(`value.choices[${i}] must be at most ${MAX_CHOICE_LENGTH} characters`);
+			}
+		});
+	}
+
 	if (!THREAD_STATUSES.includes(v.status as ThreadPayload['status'])) {
 		errors.push('value.status must be "open" or "wrapped"');
 	}
@@ -75,6 +93,7 @@ export function validateThread(value: unknown, errors: string[]): ThreadPayload 
 	return {
 		messages: v.messages as DiscussTurn[],
 		learnings: v.learnings as Learning[],
+		choices: v.choices as string[],
 		status: v.status as ThreadPayload['status']
 	};
 }
