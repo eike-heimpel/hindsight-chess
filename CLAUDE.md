@@ -147,3 +147,25 @@ npm run calibrate:review -- <chesscom-user> [sampleSize]
 - Mobile-first: base styles target small screens, `sm:`/`md:`/`lg:` scale up.
   Use `min-h-dvh`, never `min-h-screen`/`100vh`. Interactive elements clear ~44px
   at `@media (pointer: coarse)`. Honour `env(safe-area-inset-*)`.
+
+## Documentation
+
+Docs live in `docs/`; [`docs/CLAUDE.md`](docs/CLAUDE.md) is the map. Conventions:
+
+- **Code wins.** On any conflict between a doc and the code, the code is right —
+  fix the doc.
+- **Reference, don't duplicate** — link between docs (`see docs/persistence.md`),
+  don't repeat content.
+- **Reference code, don't embed** — point to a file path + symbol name
+  (`buildTurningPointFacts` in `coach/facts.ts`), never paste source. An
+  illustrative shape (a type sketch, an ASCII diagram) is fine; a copy of a real
+  definition drifts.
+- **No line numbers** — `foo.ts:42` rots on the next edit; name the
+  function/type/constant instead, it's greppable and stable.
+- **No hardcoded values that live in code** — don't write "a slip is ≥8 win%"
+  when it's `PLAYER_MISTAKE_DELTA`; reference the symbol.
+- **No runtime metrics** — nothing that goes stale ("197 tests", "two accounts").
+- **Single-topic files** — one concern per doc; a new concern is a new file plus
+  a line in `docs/CLAUDE.md`, not a section bolted onto an unrelated doc.
+- **Domain terms in one place** — define them in [`docs/glossary.md`](docs/glossary.md)
+  and link, rather than redefining inline.

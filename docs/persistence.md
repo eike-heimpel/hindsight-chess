@@ -1,14 +1,15 @@
 # Per-user persistence — the move-state layer
 
-**Status:** design, ready to build. **Problem it solves:** today the app persists
-only _global, game-keyed_ caches (`reviewGames`, `reviewAnalysis`,
-`reviewExplanations`, `reviewHeadlines`) plus a thin per-user identity layer
-(`userReviewAccounts`, `userSettings`). There is **no per-user review state** —
-no mark-for-review, no notes, no saved explanations, no resume, no coach memory.
-The blunder trainer can't even reopen where you left off, and a coach
-conversation is lost the moment you switch ply. This doc designs the layer that
-fills that gap, built so every current _and_ foreseeable feature reads from one
-substrate.
+**Status:** built through Phase 4 (substrate + marks + notes + snapshots +
+coach-thread persistence); Phase 5 (SRS + cross-game analytics) deferred — see
+the delivery section. The framing below is the original design against the
+pre-build state, kept because the model still holds; the **Problem it solved:**
+the app persisted only _global, game-keyed_ caches (`reviewGames`,
+`reviewAnalysis`, `reviewExplanations`, `reviewHeadlines`) plus a thin per-user
+identity layer (`userReviewAccounts`, `userSettings`), with **no per-user review
+state** — no mark-for-review, notes, saved explanations, resume, or coach memory.
+This doc designs the layer that fills that gap, built so every current _and_
+foreseeable feature reads from one substrate.
 
 > This plan was adversarially verified against the real code and stress-tested
 > against 11 invented future features. The corrections from that pass are folded
@@ -17,8 +18,8 @@ substrate.
 ## Core idea: a move is the atom; features attach facets
 
 The unit of per-user state is **a move you've touched**, identified by
-`{source, gameId, ply}` — the exact key `explainId` builds at
-`blunders/+page.svelte:85`, the same key `reviewExplanations` and the coach
+`{source, gameId, ply}` — the exact key `explainId` builds in
+`blunders/+page.svelte`, the same key `reviewExplanations` and the coach
 `discuss` route already use. Every feature reads and writes a different **facet**
 of that one move record. No feature owns the move; features own facets.
 
@@ -111,7 +112,7 @@ type ReviewStateDoc = {
 
 ## Trust & ownership — **[verified], this is where the first plan was wrong**
 
-These are per-user writes guarded by `requireUser` (`auth.ts:34`). They do **not**
+These are per-user writes guarded by `requireUser` (`auth.ts`). They do **not**
 write the global game-keyed caches, so they don't need the engine re-derivation
 the `analyze`/`explain`/`discuss` routes do — **but three holes had to close:**
 
@@ -124,18 +125,18 @@ the `analyze`/`explain`/`discuss` routes do — **but three holes had to close:*
    403 otherwise.
 2. **`side` is derived, never trusted.** Compute it server-side from the stored
    game + the user's account, exactly as `discuss` does. It is not a body field.
-3. **`gameId` is hardened.** Reuse `parseEngineRequestBase` (`explainRequest.ts:54`)
+3. **`gameId` is hardened.** Reuse `parseEngineRequestBase` (`explainRequest.ts`)
    so `source`/`ply` validate identically, and cap `gameId` length + charset before
    it ever enters a Mongo `_id`.
 
 ### Per-facet trust (not a blanket rule)
 
-| Facet                  | Trust                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mark`, `note`, cursor | user opinion — trust the body (after ownership gate)                                                                                                                                                                                                                                                                                                                                                                             |
-| `snapshot.text`        | **re-read server-side** via `getExplanation(source,gameId,ply)`; 404 if absent. Never trust body prose.                                                                                                                                                                                                                                                                                                                          |
-| `snapshot.facts`       | **[verified] re-derived, not copied.** `reviewExplanations` stores _only_ `text` — there are no facts in the cache to copy. The snapshot route accepts the engine numbers (like `explain` does), validates `fenBefore`/`playedUci` against the stored move, and rebuilds facts via the same validate-then-rebuild path as `explain/+server.ts:30-39`. For `from:'coach'`, defer to Phase 4 and freeze from the persisted thread. |
-| `thread`               | `messages` are user/coach prose; `learnings`/`show` were already LLM-gated server-side by `discuss`. Persisting the returned thread is fine.                                                                                                                                                                                                                                                                                     |
+| Facet                  | Trust                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mark`, `note`, cursor | user opinion — trust the body (after ownership gate)                                                                                                                                                                                                                                                                                                                                                                                   |
+| `snapshot.text`        | **re-read server-side** via `getExplanation(source,gameId,ply)`; 404 if absent. Never trust body prose.                                                                                                                                                                                                                                                                                                                                |
+| `snapshot.facts`       | **[verified] re-derived, not copied.** `reviewExplanations` stores _only_ `text` — there are no facts in the cache to copy. The snapshot route accepts the engine numbers (like `explain` does), validates `fenBefore`/`playedUci` against the stored move, and rebuilds facts via the same validate-then-rebuild path as `explain` (`explain/+server.ts`). For `from:'coach'`, defer to Phase 4 and freeze from the persisted thread. |
+| `thread`               | `messages` are user/coach prose; `learnings`/`show` were already LLM-gated server-side by `discuss`; `choices` (the last turn's chips) is shape/cap-validated like the prose. Persisting the returned thread is fine.                                                                                                                                                                                                                  |
 
 ## Server surface — `src/lib/server/userMoveState.ts`
 
@@ -146,7 +147,7 @@ getGameMoveStates(userId, source, gameId): Promise<Record<ply, MoveState>>  // p
 getMoveStatesByRefs(userId, refs: MoveRef[]): Promise<Record<key, MoveState>> // [verified] batch read for shortlist / study-sets
 listShortlist(userId): Promise<MoveState[]>
 getMoveState / setMark / setNote / saveThread(userId, ref, …)
-freezeSnapshot(userId, ref): copies text from getExplanation + rebuilds facts (validate-then-rebuild)
+freezeSnapshot(userId, game, side, body): copies text from getExplanation + rebuilds facts (validate-then-rebuild)
 clearMove(userId, ref) / clearAllMoveState(userId)
 // userReviewState.ts: getReviewState(userId) / setCursor(userId, queue, ref|null)
 ```
@@ -169,17 +170,17 @@ clearMove(userId, ref) / clearAllMoveState(userId)
 
 ## Integration points (against the current code)
 
-1. **Blunders loader** `blunders/+page.server.ts:30-54` — add one
+1. **Blunders loader** `blunders/+page.server.ts` — add one
    `getGameMoveStates` per game in the existing `byGame` loop, seed
    `mark`/`note`/`hasThread`/`snapshot` onto entries exactly the way
    `cachedExplanation` is seeded today; return the `blunders` cursor.
-2. **`BlunderEntry`** `stats/types.ts:172` — add optional `mark?`, `note?`,
+2. **`BlunderEntry`** (`review/stats/types.ts`) — add optional `mark?`, `note?`,
    `hasThread?`, `snapshot?` next to `cachedExplanation`, same "seeded by the
    loader" comment.
 3. **Blunders page** `blunders/+page.svelte` — **[verified] Resume is net-new, not
-   a bug fix** (nothing is persisted today; `index` at `:46` is ephemeral). At
+   a bug fix** (nothing is persisted today; the page's `index` is ephemeral). At
    mount, resolve the initial `index` by matching the saved cursor against the
-   _filtered_ `entries` derived list (`:42-44`); fail-soft to the worst blunder
+   _filtered_ `entries` derived list; fail-soft to the worst blunder
    **only** when the referenced move isn't in the current view (an expected state —
    recency window / time-class filter), letting any actual read failure surface.
    Star/done/note buttons POST from their **event handlers** (not `$effect`); `go()`
