@@ -63,8 +63,9 @@ type MoveStateDoc = {
 	};
 	thread?: {
 		// coach conversation (Phase 4)
-		messages: DiscussTurn[]; //   reused verbatim from coach/types.ts:88
-		learnings: Learning[]; //   cumulative wrapped set (coach/types.ts:106), not just last turn
+		messages: DiscussTurn[]; //   reused verbatim from coach/types.ts
+		learnings: Learning[]; //   cumulative wrapped set (coach/types.ts), not just last turn
+		choices: string[]; //   the last coach turn's chips, so resume comes back with its next-steps
 		status: 'open' | 'wrapped';
 		updatedAt: Date;
 	};
@@ -185,16 +186,14 @@ clearMove(userId, ref) / clearAllMoveState(userId)
    persists the cursor fire-and-forget; a "Starred" chip joins the segmented filter.
    New controls carry the 44px coarse-pointer treatment the existing `.btn`/`.seg`
    use.
-4. **Coach** `coachThread.svelte.ts` — **[verified] this is real new branching, not
-   a free affordance.** `open(ply)` (`:320`) currently wipes `messages` and (variant
-   A) immediately fires an LLM `open` turn. Add `open(ply, savedThread?)` that, when
-   a thread exists, **seeds** `messages`/`choices`/`canGuide`/`wrapUpReady` from it
-   and **skips** the `runTurn('open')` so resume doesn't re-bill the LLM. Inject a
-   `save` fn the same way `discuss`/`evaluate` are injected (`:115-121`); debounce-save
-   after the response fold (`:240-253`); and **save in `finish()` (`:377`, not 376)
-   _before_ it clears state** (`:380-385`). `thread.learnings` is stored flat as
-   `Learning[]`; on hydrate re-wrap into the `{ply, moveNumber, learnings}` tray
-   shape (`moveNumber` computable from `ply`, see `:249`).
+4. **Coach** `coachThread.svelte.ts` — **[done].** The thread keys off a `Subject`
+   (a real move, or an explored "what if" line — see the `MoveRef` `line` field), not
+   a bare ply. On open it asks the injected `loadThread` for a saved thread and, when
+   one exists, **seeds** `messages`/`choices`/`learnings`/`wrapUpReady` from it and
+   **skips** the opening `runTurn` so resume doesn't re-bill the LLM. The injected
+   `persist` (sibling of `discuss`/`evaluate`) fires after each response fold and in
+   `finish()` _before_ state clears. `thread.learnings` is stored flat as `Learning[]`;
+   on hydrate it re-wraps into the per-subject `{key, moveNumber, learnings}` tray.
 5. **Review board** `/review/[source]/[gameId]` — note + star on any move; reads the
    same overlay.
 6. **Home** — "pick up where you left off" rail (cursor) + "your shortlist (N)".
