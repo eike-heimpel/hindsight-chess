@@ -282,7 +282,7 @@ export async function freezeSnapshot(
 ): Promise<void> {
 	const ref: MoveRef = { source: body.source, gameId: body.gameId, ply: body.ply };
 
-	const text = await getExplanation(ref.source, ref.gameId, ref.ply);
+	const text = await getExplanation(ref.source, ref.gameId, ref.ply, side);
 	if (!text) throw error(404, 'no explanation to snapshot');
 
 	const stored = game.moves[ref.ply - 1];
@@ -293,7 +293,7 @@ export async function freezeSnapshot(
 
 	let facts;
 	try {
-		facts = buildExplainFacts(body);
+		facts = buildExplainFacts(body, side);
 	} catch (e) {
 		throw error(400, `Could not ground snapshot: ${e instanceof Error ? e.message : String(e)}`);
 	}

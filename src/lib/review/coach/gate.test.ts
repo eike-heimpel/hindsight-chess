@@ -11,6 +11,7 @@ function facts(over: Partial<TurningPointFacts> = {}): TurningPointFacts {
 		moveNumber: 2,
 		mover: 'White',
 		playerColor: 'w',
+		playerIsMover: true,
 		kind: 'mistake',
 		setup: null,
 		playedSan: 'Qh5',

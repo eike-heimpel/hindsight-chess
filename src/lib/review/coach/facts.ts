@@ -36,15 +36,18 @@ export function buildTurningPointFacts(
 	side: Side,
 	tp: TurningPointInput
 ): TurningPointFacts {
-	const f = buildExplainFacts({
-		source: game.source,
-		gameId: game.gameId,
-		ply: tp.ply,
-		fenBefore: tp.fenBefore,
-		playedUci: tp.playedUci,
-		bestLines: tp.bestLines,
-		replyLine: tp.replyLine
-	});
+	const f = buildExplainFacts(
+		{
+			source: game.source,
+			gameId: game.gameId,
+			ply: tp.ply,
+			fenBefore: tp.fenBefore,
+			playedUci: tp.playedUci,
+			bestLines: tp.bestLines,
+			replyLine: tp.replyLine
+		},
+		side
+	);
 
 	// `winBefore` is the engine's BEST move's value — it presumes that move was
 	// found. The second line's win% gauges how SHARP the position was: a big gap
@@ -67,6 +70,7 @@ export function buildTurningPointFacts(
 		moveNumber: f.moveNumber,
 		mover: f.mover,
 		playerColor: side,
+		playerIsMover: f.playerIsMover,
 		kind: tp.kind,
 		setup: tp.setup,
 		playedSan: f.playedSan,

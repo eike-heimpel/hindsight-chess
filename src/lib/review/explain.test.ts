@@ -34,7 +34,7 @@ describe('evalText', () => {
 
 describe('buildExplainFacts', () => {
 	it('derives mover, SAN lines, and the played move facts (English)', () => {
-		const f = buildExplainFacts(baseReq());
+		const f = buildExplainFacts(baseReq(), 'w');
 		expect(f.mover).toBe('White');
 		expect(f.moveNumber).toBe(2);
 		expect(f.playedSan).toBe('Qh5');
@@ -47,27 +47,28 @@ describe('buildExplainFacts', () => {
 	});
 
 	it('SAN-ifies the reply line from the position after the played move', () => {
-		const f = buildExplainFacts(baseReq());
+		const f = buildExplainFacts(baseReq(), 'w');
 		expect(f.replySanLine).toBe('Nc6 Bc4 g6');
 		expect(f.evalPlayed).toBe('-0.3'); // -replyLine.cp, mover POV
 	});
 
 	it('classifies from the win-% drop', () => {
-		const f = buildExplainFacts(baseReq());
+		const f = buildExplainFacts(baseReq(), 'w');
 		expect(f.winBefore).toBeGreaterThan(f.winAfter);
 		expect(f.classification).toBe('inaccuracy'); // ~5.5% drop
 	});
 
 	it('flags the played move as best when it matches the engine', () => {
 		const f = buildExplainFacts(
-			baseReq({ playedUci: 'g1f3', replyLine: line('b8c6', ['b8c6'], 20) })
+			baseReq({ playedUci: 'g1f3', replyLine: line('b8c6', ['b8c6'], 20) }),
+			'w'
 		);
 		expect(f.isBest).toBe(true);
 		expect(f.classification).toBe('best');
 	});
 
 	it('detects no error-nature signals on a quiet inaccuracy', () => {
-		const f = buildExplainFacts(baseReq());
+		const f = buildExplainFacts(baseReq(), 'w');
 		expect(f.nature).toEqual({
 			allowedMate: false,
 			threwAwayWin: false,
@@ -77,21 +78,25 @@ describe('buildExplainFacts', () => {
 
 	it('flags a hung piece — moved onto an attacked, undefended square', () => {
 		// White plays Qh5 into the g6 pawn, nothing defends h5.
-		const f = buildExplainFacts({
-			source: 'chesscom',
-			gameId: 'g',
-			ply: 5,
-			fenBefore: 'rnbqkbnr/pppp1p1p/6p1/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 3',
-			playedUci: 'd1h5',
-			bestLines: [line('g1f3', ['g1f3'], 20)],
-			replyLine: line('g6h5', ['g6h5'], 900) // ...gxh5 wins the queen
-		});
+		const f = buildExplainFacts(
+			{
+				source: 'chesscom',
+				gameId: 'g',
+				ply: 5,
+				fenBefore: 'rnbqkbnr/pppp1p1p/6p1/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 3',
+				playedUci: 'd1h5',
+				bestLines: [line('g1f3', ['g1f3'], 20)],
+				replyLine: line('g6h5', ['g6h5'], 900) // ...gxh5 wins the queen
+			},
+			'w'
+		);
 		expect(f.nature.hangsMovedPiece).toBe(true);
 	});
 
 	it('flags an allowed mate against the mover', () => {
 		const f = buildExplainFacts(
-			baseReq({ replyLine: line('d8e1', ['d8e1'], MATE_SCORE_BASE - 1) })
+			baseReq({ replyLine: line('d8e1', ['d8e1'], MATE_SCORE_BASE - 1) }),
+			'w'
 		);
 		expect(f.nature.allowedMate).toBe(true);
 	});
@@ -99,7 +104,8 @@ describe('buildExplainFacts', () => {
 	it('flags a thrown-away winning position', () => {
 		// Was clearly winning (best line +6.0), the move played hangs it to ~equal.
 		const f = buildExplainFacts(
-			baseReq({ bestLines: [line('g1f3', ['g1f3'], 600)], replyLine: line('b8c6', ['b8c6'], 10) })
+			baseReq({ bestLines: [line('g1f3', ['g1f3'], 600)], replyLine: line('b8c6', ['b8c6'], 10) }),
+			'w'
 		);
 		expect(f.nature.threwAwayWin).toBe(true);
 	});
@@ -107,15 +113,18 @@ describe('buildExplainFacts', () => {
 	it('surfaces the board-diff facts: nowDefends, hangingAfter, and census (f5-style)', () => {
 		// Black pawns e4 + f7, White knight f3 attacks e4. Black plays ...f5,
 		// defending e4. The lie "f5 leaves e4 undefended" must be unsayable.
-		const f = buildExplainFacts({
-			source: 'chesscom',
-			gameId: 'g',
-			ply: 2,
-			fenBefore: '4k3/5p2/8/8/4p3/5N2/8/4K3 b - - 0 1',
-			playedUci: 'f7f5',
-			bestLines: [line('f7f5', ['f7f5'], 20)],
-			replyLine: line('f3e5', ['f3e5'], -20)
-		});
+		const f = buildExplainFacts(
+			{
+				source: 'chesscom',
+				gameId: 'g',
+				ply: 2,
+				fenBefore: '4k3/5p2/8/8/4p3/5N2/8/4K3 b - - 0 1',
+				playedUci: 'f7f5',
+				bestLines: [line('f7f5', ['f7f5'], 20)],
+				replyLine: line('f3e5', ['f3e5'], -20)
+			},
+			'b'
+		);
 		expect(f.played.nowDefends).toContainEqual({ pieceEn: 'pawn', square: 'e4' });
 		expect(f.hangingAfter.some((h) => h.square === 'e4')).toBe(false);
 		expect(f.census.black).toContainEqual({ pieceEn: 'pawn', square: 'f5' });
@@ -124,15 +133,18 @@ describe('buildExplainFacts', () => {
 
 	it('handles a checkmating move with no reply line', () => {
 		// Scholar's mate: after 1.e4 e5 2.Bc4 Nc6 3.Qh5 Nf6??, White plays Qxf7#.
-		const f = buildExplainFacts({
-			source: 'chesscom',
-			gameId: 'g',
-			ply: 7,
-			fenBefore: 'r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4',
-			playedUci: 'h5f7',
-			bestLines: [line('h5f7', ['h5f7'], MATE_SCORE_BASE - 1)],
-			replyLine: null
-		});
+		const f = buildExplainFacts(
+			{
+				source: 'chesscom',
+				gameId: 'g',
+				ply: 7,
+				fenBefore: 'r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4',
+				playedUci: 'h5f7',
+				bestLines: [line('h5f7', ['h5f7'], MATE_SCORE_BASE - 1)],
+				replyLine: null
+			},
+			'w'
+		);
 		expect(f.playedSan).toBe('Qxf7#');
 		expect(f.played.isCheckmate).toBe(true);
 		expect(f.replySanLine).toBeNull();
@@ -142,7 +154,7 @@ describe('buildExplainFacts', () => {
 
 describe('buildExplainPrompt', () => {
 	it('grounds the user message in the played move, best move, and evals', () => {
-		const { system, user } = buildExplainPrompt(buildExplainFacts(baseReq()));
+		const { system, user } = buildExplainPrompt(buildExplainFacts(baseReq(), 'w'));
 		expect(system).toContain("White's point of view");
 		expect(user).toContain('Qh5');
 		expect(user).toContain('Nf3 Nc6 Bb5');
@@ -151,7 +163,7 @@ describe('buildExplainPrompt', () => {
 	});
 
 	it('coaches at a beginner level and leads with what the move allows', () => {
-		const { system, user } = buildExplainPrompt(buildExplainFacts(baseReq()));
+		const { system, user } = buildExplainPrompt(buildExplainFacts(baseReq(), 'w'));
 		// Beginner audience + pattern-recognition framing, not deep engine lines.
 		expect(system).toContain('500–1000');
 		expect(system).toContain('reply line');
@@ -161,15 +173,18 @@ describe('buildExplainPrompt', () => {
 
 	it('renders the board-diff facts and hardens the no-undefended-lie rules', () => {
 		const { system, user } = buildExplainPrompt(
-			buildExplainFacts({
-				source: 'chesscom',
-				gameId: 'g',
-				ply: 2,
-				fenBefore: '4k3/5p2/8/8/4p3/5N2/8/4K3 b - - 0 1',
-				playedUci: 'f7f5',
-				bestLines: [line('f7f5', ['f7f5'], 20)],
-				replyLine: line('f3e5', ['f3e5'], -20)
-			})
+			buildExplainFacts(
+				{
+					source: 'chesscom',
+					gameId: 'g',
+					ply: 2,
+					fenBefore: '4k3/5p2/8/8/4p3/5N2/8/4K3 b - - 0 1',
+					playedUci: 'f7f5',
+					bestLines: [line('f7f5', ['f7f5'], 20)],
+					replyLine: line('f3e5', ['f3e5'], -20)
+				},
+				'b'
+			)
 		);
 		// Hardened grounding rules present.
 		expect(system).toContain('defended by: nothing');
@@ -182,16 +197,34 @@ describe('buildExplainPrompt', () => {
 
 	it('surfaces error-nature signals as a Signals line', () => {
 		const { user } = buildExplainPrompt(
-			buildExplainFacts({
-				source: 'chesscom',
-				gameId: 'g',
-				ply: 5,
-				fenBefore: 'rnbqkbnr/pppp1p1p/6p1/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 3',
-				playedUci: 'd1h5',
-				bestLines: [line('g1f3', ['g1f3'], 20)],
-				replyLine: line('g6h5', ['g6h5'], 900)
-			})
+			buildExplainFacts(
+				{
+					source: 'chesscom',
+					gameId: 'g',
+					ply: 5,
+					fenBefore: 'rnbqkbnr/pppp1p1p/6p1/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 3',
+					playedUci: 'd1h5',
+					bestLines: [line('g1f3', ['g1f3'], 20)],
+					replyLine: line('g6h5', ['g6h5'], 900)
+				},
+				'w'
+			)
 		);
 		expect(user).toContain('Signals: hangs the queen on h5');
+	});
+
+	it("speaks in the second person when the move is the viewer's own", () => {
+		// White to move; viewer is White → "your" move.
+		const { system } = buildExplainPrompt(buildExplainFacts(baseReq(), 'w'));
+		expect(system).toContain("reader's OWN move");
+		expect(system).toContain('Address them directly as "you"');
+	});
+
+	it('speaks in the third person when the move belongs to the opponent', () => {
+		// White to move, but the viewer is Black → describe White's move, never "you".
+		const { system } = buildExplainPrompt(buildExplainFacts(baseReq(), 'b'));
+		expect(system).toContain("reader's OPPONENT");
+		expect(system).toContain('THIRD PERSON');
+		expect(system).toContain('Do NOT address the reader as "you"');
 	});
 });

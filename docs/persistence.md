@@ -118,8 +118,9 @@ the `analyze`/`explain`/`discuss` routes do — **but three holes had to close:*
    filter; `requireUser` only proves a session exists. Without a gate, any signed-in
    user could attach state to games they never played. **Every write** does
    `getReviewGame(source, gameId)` then asserts the user owns it (compare
-   `user.reviewAccounts` against `game.white/black.username`, lowercased — the same
-   shape `coachedSide` uses in `discuss/+server.ts:56`); reject with 403 otherwise.
+   `user.reviewAccounts` against `game.white/black.username`, lowercased — via the
+   shared `ownedSide` helper, which `explain` and `discuss` also use); reject with
+   403 otherwise.
 2. **`side` is derived, never trusted.** Compute it server-side from the stored
    game + the user's account, exactly as `discuss` does. It is not a body field.
 3. **`gameId` is hardened.** Reuse `parseEngineRequestBase` (`explainRequest.ts:54`)

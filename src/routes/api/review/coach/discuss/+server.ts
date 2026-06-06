@@ -6,6 +6,7 @@ import type { ReviewGame } from '$lib/review/types';
 import type { GameAnalysis } from '$lib/review/analysis';
 import { parseEngineRequestBase } from '$lib/review/explainRequest';
 import { getReviewGame } from '$lib/server/reviewGames';
+import { ownedSide } from '$lib/server/userMoveState';
 import { getAnalysis } from '$lib/server/reviewAnalysis';
 import { buildTurningPointFacts, type TurningPointInput } from '$lib/review/coach/facts';
 import { factsBlock } from '$lib/review/coach/prompt';
@@ -54,13 +55,13 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 		throw error(400, 'fenBefore/playedUci do not match the stored move');
 	}
 
-	const side = coachedSide(game, user.activeAccount?.username);
-	if (!side) throw error(400, 'active account is not a player in this game');
+	const side = ownedSide(game, user.reviewAccounts);
+	if (!side) throw error(403, 'not your game');
 
 	await assertCanDiscuss(user.userId, { source: req.source, gameId: req.gameId, ply: req.ply });
 
 	const analysis = await getAnalysis(req.source, req.gameId);
-	const { kind, setup } = deriveMoment(game, analysis, req.ply);
+	const { kind, setup } = deriveMoment(game, analysis, req.ply, side);
 
 	const tp: TurningPointInput = {
 		ply: req.ply,
@@ -112,24 +113,22 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	return json({ ...resp, canGuide: !resp.wrapUp });
 };
 
-/** The coached side: which colour the active account played in this game. */
-function coachedSide(game: ReviewGame, username: string | undefined): Side | null {
-	if (!username) return null;
-	const u = username.toLowerCase();
-	if (game.white.username.toLowerCase() === u) return 'w';
-	if (game.black.username.toLowerCase() === u) return 'b';
-	return null;
-}
-
 /** Re-derive the moment's kind + setup from the cached analysis — never the client.
- *  The player's own slip (delta >= 8) is a 'mistake'; an opponent blunder on the
- *  prior ply (delta >= 12) makes this an 'opportunity' to punish; anything else is
- *  a quiet move the user CHOSE to ask about. */
+ *  Whose move this ply is comes from the stored game, not a client field: a move
+ *  the OPPONENT made is an 'opponent' moment (described in the third person), even
+ *  with a big swing — it is NOT the player's mistake. For the player's own move:
+ *  a slip (delta >= 8) is a 'mistake'; an opponent blunder on the prior ply (delta
+ *  >= 12) makes this an 'opportunity' to punish; anything else is a quiet move the
+ *  player CHOSE to ask about. */
 function deriveMoment(
 	game: ReviewGame,
 	analysis: GameAnalysis | null,
-	ply: number
+	ply: number,
+	side: Side
 ): { kind: MomentKind; setup: TurningPointInput['setup'] } {
+	const moverColor = game.moves[ply - 1]?.color;
+	if (moverColor && moverColor !== side) return { kind: 'opponent', setup: null };
+
 	if (!analysis) return { kind: 'chosen', setup: null };
 
 	const own = analysis.moves.find((m) => m.ply === ply);

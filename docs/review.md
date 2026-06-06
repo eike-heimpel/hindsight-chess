@@ -87,9 +87,15 @@ prose, hard-grounded in engine lines + chess.js facts.
   deep optimal line — so a hung back-rank mate reads as "you allowed Qe1#", not
   "you missed a mate-in-5". The audience level is isolated in `AUDIENCE` for a
   future per-Elo knob.
-- **Cached** by `{source, gameId, ply}` in the `reviewExplanations` collection;
+- **Player-relative voice.** `buildExplainFacts` takes the viewer's `playerColor`
+  (derived server-side via `ownedSide`); `playerIsMover` flips the prompt's voice
+  between "you played X" for your own move and a neutral third-person "White
+  played X" for the opponent's — the evals stay mover-POV, only the address
+  changes.
+- **Cached** by `{source, gameId, ply, perspective}` in the `reviewExplanations`
+  collection (perspective = the viewer's colour, since the text differs by side);
   a repeat ask re-serves the text (no LLM call). The replay loader seeds the page
-  with `listExplanations()`.
+  with `listExplanations()` for the viewer's side.
 - **`movetime`, not fixed depth** (unlike analysis): the prose is cached as text,
   so reproducibility doesn't matter and bounded latency does. `MoveAnalysis.pv`
   stays unused — the explainer does its own focused eval rather than bloating the

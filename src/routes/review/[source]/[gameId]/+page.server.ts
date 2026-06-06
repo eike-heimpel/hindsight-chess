@@ -5,7 +5,7 @@ import { getUser } from '$lib/server/auth';
 import { getReviewGame } from '$lib/server/reviewGames';
 import { getAnalysis } from '$lib/server/reviewAnalysis';
 import { listExplanations } from '$lib/server/reviewExplanations';
-import { getGameMoveStates } from '$lib/server/userMoveState';
+import { getGameMoveStates, ownedSide } from '$lib/server/userMoveState';
 import type { ReviewSource } from '$lib/review/types';
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
@@ -14,13 +14,18 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	if (!user) throw redirect(303, '/login');
 
 	const source = params.source as ReviewSource;
-	const [game, analysis, explanations, moveStates] = await Promise.all([
+	const [game, analysis, moveStates] = await Promise.all([
 		getReviewGame(source, params.gameId),
 		getAnalysis(source, params.gameId),
-		listExplanations(source, params.gameId),
 		getGameMoveStates(user.userId, source, params.gameId)
 	]);
 	if (!game) throw error(404, 'game not found');
+
+	// Seed explanations from the viewer's perspective — the cache is split by side,
+	// so the wrong slice would surface "you played" on the opponent's moves. Empty
+	// when none of the viewer's accounts played this game (a non-owned game).
+	const side = ownedSide(game, user.reviewAccounts);
+	const explanations = side ? await listExplanations(source, params.gameId, side) : {};
 
 	// Orient the board to the viewer's side. An explicit `?orient` wins (used when
 	// deep-linking from the stats screens, which know the side); otherwise infer

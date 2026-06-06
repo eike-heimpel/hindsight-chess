@@ -177,8 +177,11 @@ function sentenceContaining(text: string, needle: string): string | null {
  * claim that isn't in the fact set. Shown when the LLM keeps failing the gate.
  */
 export function buildFallbackExplanation(facts: ReviewExplainFacts): string {
+	// Voice matches the prompt: "you" for the reader's own move, the mover's colour
+	// for the opponent's. Win % is mover-POV either way.
+	const whose = facts.playerIsMover ? 'your' : `${facts.mover}'s`;
 	const sentences: string[] = [
-		`${facts.playedSan} is classified as a ${facts.classification}; your win chance went from ${Math.round(facts.winBefore)}% to ${Math.round(facts.winAfter)}%.`
+		`${facts.playedSan} is classified as a ${facts.classification}; ${whose} win chance went from ${Math.round(facts.winBefore)}% to ${Math.round(facts.winAfter)}%.`
 	];
 
 	const bestLine = facts.lines[0]?.sanLine;

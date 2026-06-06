@@ -23,10 +23,13 @@ export type PrincipleSignal = {
 
 type AttackerEn = { pieceEn: string; square: string };
 
-/** Why this moment is being discussed. 'mistake' = the player's own slip;
- *  'opportunity' = the opponent just blundered and it's the player's turn to
- *  punish; 'chosen' = a quiet move the user picked themselves (no eval swing). */
-export type MomentKind = 'mistake' | 'opportunity' | 'chosen';
+/** Why this moment is being discussed. All four are about a move the PLAYER made,
+ *  except 'opponent': 'mistake' = the player's own slip; 'opportunity' = the
+ *  opponent just blundered and it's the player's turn to punish; 'chosen' = a
+ *  quiet move the player picked themselves (no eval swing); 'opponent' = a move
+ *  the OPPONENT made that the player stepped onto — discussed in the third person,
+ *  never as "you played". */
+export type MomentKind = 'mistake' | 'opportunity' | 'chosen' | 'opponent';
 
 /** Everything the coach LLM is allowed to know about one moment. Built server-
  *  side from the stored game + engine lines. All evals are pre-rendered to text
@@ -34,9 +37,13 @@ export type MomentKind = 'mistake' | 'opportunity' | 'chosen';
 export type TurningPointFacts = {
 	ply: number;
 	moveNumber: number;
-	/** Whose move it is — also the player we're coaching. */
+	/** Whose move it is. The player we're coaching is `playerColor`; the move is
+	 *  theirs only when `playerIsMover` (false on an 'opponent' moment). */
 	mover: 'White' | 'Black';
 	playerColor: 'w' | 'b';
+	/** Whether the player made this move (mover === playerColor). When false the
+	 *  coach speaks in the third person and win %/evals are the opponent's POV. */
+	playerIsMover: boolean;
 	kind: MomentKind;
 	/** Set on 'opportunity' moments: the opponent's blunder that set this up. */
 	setup: { opponentBlunderSan: string; opponentDropPct: number } | null;
@@ -44,10 +51,11 @@ export type TurningPointFacts = {
 	bestSan: string;
 	isBest: boolean;
 	classification: MoveClass;
-	/** Win % for the PLAYER, before vs after the move (0..100). NOTE: `winBefore`
-	 *  is the engine's BEST move's value — it already assumes that move was found,
-	 *  so for a move that IS the best, `winBefore ≈ winAfter` even though finding it
-	 *  was the achievement. Judge moves against `winSecondBest`, not `winBefore`. */
+	/** Win % from the MOVER's POV, before vs after the move (0..100) — equals the
+	 *  player's POV only when `playerIsMover`. NOTE: `winBefore` is the engine's
+	 *  BEST move's value — it already assumes that move was found, so for a move
+	 *  that IS the best, `winBefore ≈ winAfter` even though finding it was the
+	 *  achievement. Judge moves against `winSecondBest`, not `winBefore`. */
 	winBefore: number;
 	winAfter: number;
 	/** Win % of the engine's SECOND-best line. Used ONLY as a sharpness gauge for
@@ -56,7 +64,7 @@ export type TurningPointFacts = {
 	 *  NOT a model of what the player would otherwise have played — we have no such
 	 *  model, so never read it as a human counterfactual. Null on a forced/only move. */
 	winSecondBest: number | null;
-	/** Eval after the played move, pawns from the player's POV ("-1.4", "-M3"). */
+	/** Eval after the played move, pawns from the mover's POV ("-1.4", "-M3"). */
 	evalPlayed: string;
 	played: {
 		pieceEn: string;

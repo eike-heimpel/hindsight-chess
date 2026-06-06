@@ -5,7 +5,7 @@ import { getUser } from '$lib/server/auth';
 import { listGamesForAccounts } from '$lib/server/reviewGames';
 import { getAnalysesByIds } from '$lib/server/reviewAnalysis';
 import { listExplanations } from '$lib/server/reviewExplanations';
-import { getGameMoveStates } from '$lib/server/userMoveState';
+import { getGameMoveStates, ownedSide } from '$lib/server/userMoveState';
 import { getReviewState } from '$lib/server/userReviewState';
 import { collectBlunders } from '$lib/review/stats/blunders';
 import type { ReviewSource } from '$lib/review/types';
@@ -43,7 +43,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 	for (const group of byGame.values()) {
 		const { source, gameId } = group[0];
-		const cached = await listExplanations(source as ReviewSource, gameId);
+		// Blunders are the player's own moves; seed from their perspective (the cache
+		// is split by side). Skip the read when their side can't be resolved.
+		const game = games.find((g) => g.source === source && g.gameId === gameId);
+		const side = game && active ? ownedSide(game, [active]) : null;
+		const cached = side ? await listExplanations(source as ReviewSource, gameId, side) : {};
 		// Per-user overlay seeded alongside the explanation cache, by ply — lets a
 		// revisit render the user's mark/note/thread/snapshot with zero engine cost.
 		const states = await getGameMoveStates(user.userId, source as ReviewSource, gameId);

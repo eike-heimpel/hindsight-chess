@@ -11,7 +11,7 @@
  */
 import { applyMove, boardCensus, describeMove, sideToMove } from '$lib/chess/rules';
 import { isMateScore, MATE_SCORE_BASE, type EngineLine } from '$lib/engine/engine';
-import type { Square } from '$lib/chess/types';
+import type { Side, Square } from '$lib/chess/types';
 import { winPercent } from './winPercent';
 import { classifyMove, type MoveClass } from './classify';
 import type { ReviewSource } from './types';
@@ -39,6 +39,12 @@ type AttackerEn = { pieceEn: string; square: Square };
 /** Canonical, English, mover-POV facts the prompt is allowed to use. */
 export type ReviewExplainFacts = {
 	mover: 'White' | 'Black';
+	/** The colour of the viewer being coached — the move belongs to them iff
+	 *  `playerIsMover`. Drives voice only ("you played" vs "White played"); the
+	 *  evals stay mover-POV so the model never flips signs. */
+	playerColor: 'White' | 'Black';
+	/** Whether the viewer made this move (mover === playerColor). */
+	playerIsMover: boolean;
 	moveNumber: number;
 	playedSan: string;
 	/** Tactical facts about the landing square *after* the played move. */
@@ -145,8 +151,14 @@ function fullMoveNumber(fen: string): number {
 /**
  * Build the grounded fact set. Assumes a validated request (the route parses
  * it). `bestLines` must be non-empty; `bestLines[0]` is the engine's #1 line.
+ * `playerColor` is the viewer's side, derived server-side from their linked
+ * accounts (never the client) — it sets the explanation's voice (own move vs the
+ * opponent's), nothing else.
  */
-export function buildExplainFacts(req: ReviewExplainRequest): ReviewExplainFacts {
+export function buildExplainFacts(
+	req: ReviewExplainRequest,
+	playerColor: Side
+): ReviewExplainFacts {
 	const { fenBefore, playedUci, bestLines, replyLine } = req;
 	if (bestLines.length === 0) throw new Error('buildExplainFacts: bestLines is empty');
 
@@ -172,6 +184,8 @@ export function buildExplainFacts(req: ReviewExplainRequest): ReviewExplainFacts
 
 	return {
 		mover: mover === 'w' ? 'White' : 'Black',
+		playerColor: playerColor === 'w' ? 'White' : 'Black',
+		playerIsMover: mover === playerColor,
 		moveNumber: fullMoveNumber(fenBefore),
 		playedSan: played.san,
 		played: {

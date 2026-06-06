@@ -59,20 +59,25 @@ Resolve before exposing this to strangers:
 1. **Trust model.** Analysis runs in the browser, so routes that write the
    global game-keyed caches re-derive from server-stored games rather than trust
    the POST body — `analyze`, `explain`, and `coach/discuss` all validate
-   `fenBefore`/`playedUci` against their stored move and rebuild the facts
-   server-side (shared request base in `explainRequest.ts`). What's still trusted
-   is the _engine numbers_ themselves (evals/lines): a client can still POST
-   misleading evals for the real move, so closing the hole fully means re-running
-   or signing the engine server-side. Note: the game-keyed caches (`reviewGames`,
-   `reviewAnalysis`, `reviewExplanations`) are deliberately global so engine/LLM
-   cost dedupes across users — the fix is trusting _writes_, not per-user copies.
+   `fenBefore`/`playedUci` against their stored move, derive the viewer's side
+   from their linked accounts (`ownedSide`, never a body field), and rebuild the
+   facts server-side (shared request base in `explainRequest.ts`). What's still
+   trusted is the _engine numbers_ themselves (evals/lines): a client can still
+   POST misleading evals for the real move, so closing the hole fully means re-
+   running or signing the engine server-side. Note: the game-keyed caches
+   (`reviewGames`, `reviewAnalysis`, `reviewExplanations`) stay global so
+   engine/LLM cost dedupes across users — the fix is trusting _writes_, not per-
+   user copies. `reviewExplanations` additionally keys on the viewer's
+   _perspective_ (their colour): the same move reads "you played Nxd5" to the
+   mover and "White played Nxd5" to the opponent, so the two never share an entry
+   (still global — cost dedupes across the game's two players).
 2. **Auth — wired.** Better Auth with magic-link email (Postmark) is live;
    `auth.ts` maps the session to `User`, and multi-user works. Still open for
    strangers: sign-in rate-limiting / abuse, and whether sign-up is open or
    invite-gated.
 3. **LLM cost.** Every "Explain this move" is an OpenRouter call. Caching by
-   `{source,gameId,ply}` helps, but public traffic needs rate limiting / a per-
-   user budget.
+   `{source,gameId,ply,perspective}` helps, but public traffic needs rate
+   limiting / a per-user budget.
 4. **chess.com ToS / rate limits** at multi-user scale.
 
 ## Open cleanup items

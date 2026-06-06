@@ -17,11 +17,24 @@ const AUDIENCE =
 	'an adult who recently started chess (roughly 500–1000 rating) and wants to build intuition and recognise recurring patterns, not memorise engine lines';
 
 export function buildExplainPrompt(facts: ReviewExplainFacts): { system: string; user: string } {
-	return { system: systemPrompt(facts.mover), user: buildUserMessage(facts) };
+	return { system: systemPrompt(facts), user: buildUserMessage(facts) };
 }
 
-function systemPrompt(mover: string): string {
+/** Whose move this is, and how to address the reader. The reader is always the
+ *  ${playerColor} player; the move is theirs only when ${playerIsMover}. We keep
+ *  the engine numbers mover-POV (no sign flips) and change ONLY the voice. */
+function voiceRule(f: ReviewExplainFacts): string {
+	if (f.playerIsMover) {
+		return `Whose move: this was the reader's OWN move (they play ${f.playerColor}). Address them directly as "you" — e.g. "you played ${f.playedSan}".`;
+	}
+	return `Whose move: this move was played by the reader's OPPONENT (${f.mover}); the reader plays ${f.playerColor}. Write in the THIRD PERSON, naming both sides by colour (White / Black). Do NOT address the reader as "you" and do NOT imply they made this move. Describe what the move does, and — when it is a mistake by ${f.mover} — what ${f.playerColor} can do about it (the reply line is ${f.playerColor}'s response).`;
+}
+
+function systemPrompt(f: ReviewExplainFacts): string {
+	const mover = f.mover;
 	return `You are a chess coach reviewing ONE move from a finished game for ${AUDIENCE}. You are given the move that was played, the engine's evaluation, its top candidate lines, and the engine's reply to the move played.
+
+${voiceRule(f)}
 
 Grounding (do not break):
 - Use ONLY the moves, evaluations and facts in the FACTS block. Do not invent moves, evaluations, or tactics that don't appear in the given variations.

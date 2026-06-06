@@ -6,6 +6,7 @@ import { validateExplanation, buildFallbackExplanation } from '$lib/review/expla
 import { applyMove } from '$lib/chess/rules';
 import { parseExplainRequest } from '$lib/review/explainRequest';
 import { getReviewGame } from '$lib/server/reviewGames';
+import { ownedSide } from '$lib/server/userMoveState';
 import { getExplanation, saveExplanation } from '$lib/server/reviewExplanations';
 import { makeReviewExplainer } from '$lib/server/review-explainer-factory';
 
@@ -19,31 +20,37 @@ import { makeReviewExplainer } from '$lib/server/review-explainer-factory';
  * Cached by {source, gameId, ply} so a repeat ask re-serves without an LLM call.
  */
 export const POST: RequestHandler = async ({ locals, request }) => {
-	await requireUser(locals);
+	const user = await requireUser(locals);
 
 	const raw = (await request.json().catch(() => null)) as Record<string, unknown> | null;
 	const parsed = parseExplainRequest(raw);
 	if ('errors' in parsed) throw error(400, `Invalid request: ${parsed.errors.join('; ')}`);
 	const req = parsed.value;
 
-	// `regenerate` skips the cache read so the grounded+gated pipeline reruns and
-	// overwrites a stale/wrong cached explanation. The trust checks below are
-	// unchanged — only the cache lookup is bypassed.
-	const regenerate = raw?.regenerate === true;
-	const cached = regenerate ? null : await getExplanation(req.source, req.gameId, req.ply);
-	if (cached) return json({ text: cached, cached: true });
-
+	// The viewer's colour, derived from their linked accounts (never the client) —
+	// it sets the explanation's voice and keys the cache, so the same move can read
+	// "you played" to one side and "White played" to the other.
 	const game = await getReviewGame(req.source, req.gameId);
 	if (!game) throw error(404, 'unknown game');
+	const side = ownedSide(game, user.reviewAccounts);
+	if (!side) throw error(403, 'not your game');
+
 	const stored = game.moves[req.ply - 1];
 	if (!stored) throw error(400, `ply ${req.ply} is out of range for this game`);
 	if (stored.fenBefore !== req.fenBefore || stored.uci !== req.playedUci) {
 		throw error(400, 'fenBefore/playedUci do not match the stored move');
 	}
 
+	// `regenerate` skips the cache read so the grounded+gated pipeline reruns and
+	// overwrites a stale/wrong cached explanation. The trust checks above are
+	// unchanged — only the cache lookup is bypassed.
+	const regenerate = raw?.regenerate === true;
+	const cached = regenerate ? null : await getExplanation(req.source, req.gameId, req.ply, side);
+	if (cached) return json({ text: cached, cached: true });
+
 	let facts;
 	try {
-		facts = buildExplainFacts(req);
+		facts = buildExplainFacts(req, side);
 	} catch (e) {
 		throw error(400, `Could not ground explanation: ${e instanceof Error ? e.message : String(e)}`);
 	}
@@ -67,6 +74,7 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 		source: req.source,
 		gameId: req.gameId,
 		ply: req.ply,
+		perspective: side,
 		text,
 		createdAt: new Date().toISOString()
 	});
