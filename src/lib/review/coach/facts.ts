@@ -1,8 +1,8 @@
 /**
- * Build the grounded fact pack for one turning point. Reuses the review
- * explainer's `buildExplainFacts` for the hard chess.js + eval derivations
- * (single source of truth for "what does this move do"), then layers on the
- * principle signals and game context the guided coach needs. Pure + browser-safe.
+ * Build the grounded fact pack for one moment. Reuses the review explainer's
+ * `buildExplainFacts` for the hard chess.js + eval derivations (single source of
+ * truth for "what does this move do"), then layers on the principle signals and
+ * game context the guided coach needs. Pure + browser-safe.
  */
 import type { EngineLine } from '$lib/engine/engine';
 import type { ReviewGame } from '$lib/review/types';
@@ -10,13 +10,13 @@ import type { Side } from '$lib/chess/types';
 import { buildExplainFacts } from '$lib/review/explain';
 import { winPercent } from '$lib/review/winPercent';
 import { detectPrinciples } from './principles';
-import type { TurningPointFacts } from './types';
+import type { MomentKind, TurningPointFacts } from './types';
 
 export type TurningPointInput = {
 	ply: number;
 	fenBefore: string;
 	playedUci: string;
-	kind: 'mistake' | 'opportunity';
+	kind: MomentKind;
 	setup: { opponentBlunderSan: string; opponentDropPct: number } | null;
 	/** Engine top lines from fenBefore, best first, mover POV. */
 	bestLines: EngineLine[];

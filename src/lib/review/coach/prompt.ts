@@ -1,10 +1,10 @@
 /**
- * Prompt for the guided-coach spike. The coach runs a short, *guided*
- * conversation about one turning point: it asks the player what they were
- * thinking (grounded multiple-choice), then explains using only the engine
- * facts, names a principle only when it genuinely applies, and concludes with
- * learnings tagged by level. Hard-grounded and JSON-out so the client can drive
- * the board and the choices deterministically.
+ * Prompt for the guided coach. The coach runs a short, *guided* conversation
+ * about one moment: it asks the player what they were thinking (grounded
+ * multiple-choice), then explains using only the engine facts, names a principle
+ * only when it genuinely applies, and concludes with learnings tagged by level.
+ * Hard-grounded and JSON-out so the client can drive the board and the choices
+ * deterministically.
  *
  * Encodes the review philosophy we settled on: honest not flattering; diagnose
  * the real (often less flattering) gap; principles are subordinate to the
@@ -41,14 +41,15 @@ How to coach (this is the whole point — do not just grade the move):
 - LEVELS: when you wrap up, give learnings at the levels that actually apply — "tactical" (a concrete pattern: a hung piece, a fork, a back-rank idea), "principle" (a habit like develop/castle), "process" (how to think: calculate the scary reply to the end before rejecting a move; check what's aimed at your king).
 - THE BOARD IS THE LANGUAGE. The player can't read long notation. Keep prose short and concrete; lean on the board. When a line would make it click, set "show" so the client plays it out: "punish" = the reply the played move allowed, "best" = the engine's better line. Use "none" otherwise.
 
-The conversation flow:
-- FIRST turn: set the scene in ONE or two sentences (what move, the win% swing) and ask the player what they were thinking. Provide 3–4 specific, plausible options in "choices" grounded in this position (e.g. "I didn't see the threat", "I thought my move won material", "I was worried about losing my queen"). Do NOT explain yet. "done": false, "learnings": [].
-- LATER turns: respond to the option they picked. Confirm or gently correct it against the engine facts; show a line if it helps. Ask AT MOST ONE focused follow-up (with "choices"); otherwise wrap up. When you wrap up, set "done": true, "choices": [], and fill "learnings" (1–3 items across the levels that apply).
+The conversation flow (driven by INTENT — you'll be told which this turn is):
+- OPEN: the first turn. Set the scene in ONE or two sentences (what move, the win% swing) and ask the player what they were thinking. Provide 3–4 specific, plausible options in "choices" grounded in this position (e.g. "I didn't see the threat", "I thought my move won material", "I was worried about losing my queen"). Do NOT explain yet. "wrapUp": false, "learnings": [].
+- ANSWER: respond to what the player just said (a chosen chip OR their free intuition). Confirm or gently correct it against the engine facts; show a line if it helps. You MAY ask another focused follow-up with fresh "choices", or offer takeaways — follow-ups are not capped. When the moment feels finished, set "wrapUp": true and fill "learnings" (1–3 across the levels that apply); you may still attach "choices" if there's a natural next thread.
+- GUIDE: the player is stuck and asked for a hint. Give a NARROWING hint — point at what to look at (a square, a piece, a threat) — plus 3–4 grounded options. NEVER hand them the full answer; the point is to let them find it. "wrapUp": false.
 
 Style: warm, direct, plain. 2–4 short sentences per "message". No hedging, no "great job", no jargon a beginner wouldn't know. Name squares and pieces.
 
 OUTPUT: a single JSON object, no markdown, no preamble, exactly this shape:
-{"message": string, "show": "best" | "punish" | "none", "learnings": [{"level": "tactical" | "principle" | "process", "point": string}], "choices": string[], "done": boolean}`;
+{"message": string, "show": "best" | "punish" | "none", "learnings": [{"level": "tactical" | "principle" | "process", "point": string}], "choices": string[], "wrapUp": boolean}`;
 }
 
 /** Win % gap (best vs second-best) at/above which the POSITION "demanded
@@ -82,7 +83,9 @@ function winChanceLines(f: TurningPointFacts): string[] {
 	return lines;
 }
 
-function factsBlock(f: TurningPointFacts): string {
+/** The immutable FACTS block sent to the coach every turn — exported so the
+ *  grounding gate checks the message against the exact same text. */
+export function factsBlock(f: TurningPointFacts): string {
 	const attackers = f.played.attackersOfTo.length
 		? f.played.attackersOfTo.map((a) => `${a.pieceEn} on ${a.square}`).join(', ')
 		: 'nothing';
@@ -104,7 +107,9 @@ function factsBlock(f: TurningPointFacts): string {
 	const moment =
 		f.kind === 'opportunity' && f.setup
 			? `This is an OPPORTUNITY: the opponent just blundered with ${f.setup.opponentBlunderSan} (their win chance dropped ~${Math.round(f.setup.opponentDropPct)}%), and it is now the player's move. Coach whether the player saw and took the chance.`
-			: `This is the player's own move that swung the game.`;
+			: f.kind === 'chosen'
+				? `This is a QUIET move the player CHOSE to ask about — it did NOT swing the evaluation. Describe ONLY what the FACTS support. Do not manufacture drama or a lesson that isn't there: if there's little to learn here, say so plainly. Honest beats flattering.`
+				: `This is the player's own move that swung the game.`;
 
 	return [
 		`Game result for the player: ${f.resultForPlayer}${f.opening ? ` · Opening: ${f.opening}` : ''}`,
@@ -134,16 +139,28 @@ function userMessage(req: DiscussRequest): string {
 		parts.push('');
 	}
 
-	if (req.isFirstTurn) {
+	if (req.intent === 'open') {
 		parts.push(
-			'This is the first turn. Set the scene briefly and ask what the player was thinking, with 3–4 grounded options. Do not explain the move yet.'
+			'INTENT: OPEN. This is the first turn. Set the scene briefly and ask what the player was thinking, with 3–4 grounded options. Do not explain the move yet.'
+		);
+	} else if (req.intent === 'guide') {
+		parts.push(
+			`INTENT: GUIDE. The player is stuck${req.playerText ? ` and said: "${req.playerText}"` : ''}. Give a narrowing HINT — point at what to look at — plus 3–4 grounded options. Do NOT reveal the full answer.`
 		);
 	} else {
-		parts.push(`The player just chose: "${req.playerChoice ?? '(no answer)'}"`);
+		parts.push(`INTENT: ANSWER. The player just said: "${req.playerText ?? '(no answer)'}"`);
 		parts.push(
-			'Respond to that. Correct or confirm it against the engine facts, show a line if it helps, then either ask one focused follow-up or wrap up with learnings.'
+			'Respond to that. Correct or confirm it against the engine facts, show a line if it helps, then ask another focused follow-up or wrap up with learnings.'
 		);
 	}
+
+	if (req.correction) {
+		parts.push(
+			'',
+			`Your previous reply had a grounding error: ${req.correction}. Rewrite it, fixing that, using ONLY the FACTS.`
+		);
+	}
+
 	parts.push('', 'Reply with the JSON object now.');
 	return parts.join('\n');
 }

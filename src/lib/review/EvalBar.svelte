@@ -3,8 +3,20 @@
 	 * The vertical white-vs-black win% bar beside the board. White fills from the
 	 * bottom, the hairline marks the 50% line. `pulse` hints that a live engine
 	 * eval is still in flight (used by the explore branch).
+	 *
+	 * `moments` overlays optional turning-point pips (coach surface). Each pip sits
+	 * at `at` (0..100 from the bottom). Off by default — the live review route
+	 * passes none, so the bar is unchanged there.
 	 */
-	let { whiteWin, pulse = false }: { whiteWin: number | null; pulse?: boolean } = $props();
+	let {
+		whiteWin,
+		pulse = false,
+		moments
+	}: {
+		whiteWin: number | null;
+		pulse?: boolean;
+		moments?: { at: number; color?: string }[];
+	} = $props();
 </script>
 
 {#if whiteWin !== null}
@@ -21,5 +33,13 @@
 			class="absolute inset-x-0 top-1/2 h-px -translate-y-1/2"
 			style="background: var(--eval-mid);"
 		></div>
+		{#if moments}
+			{#each moments as m, i (i)}
+				<div
+					class="absolute inset-x-0 h-1 -translate-y-1/2"
+					style="bottom: {m.at}%; background: {m.color ?? 'var(--brand)'};"
+				></div>
+			{/each}
+		{/if}
 	</div>
 {/if}

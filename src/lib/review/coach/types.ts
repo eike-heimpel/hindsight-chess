@@ -1,15 +1,15 @@
 /**
- * Contract for the guided-coach spike. Deliberately isolated from the main
- * review types so this whole `spike/` tree can be deleted or rewired wholesale
- * once we decide where it lands. Browser-safe (no server imports).
+ * Contract for the guided coach. Browser-safe (no server imports).
  *
- * The shape of the experience: the engine finds the moments that mattered
- * (turning points), and for each one we run a short *guided* discussion — the
- * coach asks the player what they were thinking (grounded multiple-choice),
- * then explains using the engine facts and, where genuinely relevant, names a
- * principle. The LLM judges relevance; it never just checks boxes.
+ * The shape of the experience: the player picks a spot (any move, not just the
+ * auto-flagged turning points), talks through their read in free text, and the
+ * coach asks grounded multiple-choice follow-ups, confirms/corrects against the
+ * engine facts, and offers an on-demand hint ("guide me"). The LLM judges
+ * relevance; it never just checks boxes.
  */
 import type { MoveClass } from '$lib/review/classify';
+import type { EngineLine } from '$lib/engine/engine';
+import type { ReviewSource } from '$lib/review/types';
 
 /** A coaching principle the engine *suspects* applies, computed deterministically.
  *  It is a candidate the LLM may use, ignore, or contradict — never gospel. */
@@ -23,18 +23,21 @@ export type PrincipleSignal = {
 
 type AttackerEn = { pieceEn: string; square: string };
 
-/** Everything the coach LLM is allowed to know about one turning point. Built
- *  on the client (it has the engine lines) and POSTed to /spike/coach/discuss.
- *  All evals are pre-rendered to text so the prompt never juggles signs. */
+/** Why this moment is being discussed. 'mistake' = the player's own slip;
+ *  'opportunity' = the opponent just blundered and it's the player's turn to
+ *  punish; 'chosen' = a quiet move the user picked themselves (no eval swing). */
+export type MomentKind = 'mistake' | 'opportunity' | 'chosen';
+
+/** Everything the coach LLM is allowed to know about one moment. Built server-
+ *  side from the stored game + engine lines. All evals are pre-rendered to text
+ *  so the prompt never juggles signs. */
 export type TurningPointFacts = {
 	ply: number;
 	moveNumber: number;
 	/** Whose move it is — also the player we're coaching. */
 	mover: 'White' | 'Black';
 	playerColor: 'w' | 'b';
-	/** Why this moment was picked: 'mistake' = the player's own slip; 'opportunity'
-	 *  = the opponent just blundered and it's the player's turn to punish. */
-	kind: 'mistake' | 'opportunity';
+	kind: MomentKind;
 	/** Set on 'opportunity' moments: the opponent's blunder that set this up. */
 	setup: { opponentBlunderSan: string; opponentDropPct: number } | null;
 	playedSan: string;
@@ -80,15 +83,23 @@ export type TurningPointFacts = {
 	resultForPlayer: 'win' | 'loss' | 'draw';
 };
 
-/** One conversational turn already exchanged, for context on follow-ups. */
+/** One conversational turn already exchanged, for context on follow-ups. Holds
+ *  no chess claims — only the prose said by each side. */
 export type DiscussTurn = { role: 'coach' | 'player'; content: string };
+
+/** What the coach LLM is asked to do this turn. 'open' = first turn (scene +
+ *  ask, no explanation); 'answer' = respond to the player's chip/free text;
+ *  'guide' = the player is stuck, give a narrowing hint (never the full answer). */
+export type CoachIntent = 'open' | 'answer' | 'guide';
 
 export type DiscussRequest = {
 	facts: TurningPointFacts;
 	history: DiscussTurn[];
-	/** The option the player just tapped (absent on the opening turn). */
-	playerChoice?: string;
-	isFirstTurn: boolean;
+	intent: CoachIntent;
+	/** The free text OR the tapped choice label. Absent on the opening turn. */
+	playerText?: string;
+	/** Gate-retry instruction: the prior reply's grounding error to fix. */
+	correction?: string;
 };
 
 /** A learning, tagged by the level it lives at — what the user asked for. */
@@ -105,8 +116,36 @@ export type DiscussResponse = {
 	show: 'best' | 'punish' | 'none';
 	/** Multi-level takeaways. Usually empty until the point is being wrapped up. */
 	learnings: Learning[];
-	/** Options for the next question. Empty when this turning point is finished. */
+	/** Options for the next question. May be non-empty even when `wrapUp` is true. */
 	choices: string[];
-	/** True when there's nothing more to discuss for this turning point. */
-	done: boolean;
+	/** Advisory "a good place to stop" — never hides the input. (Was `done`.) */
+	wrapUp: boolean;
+};
+
+/** The wire request the browser POSTs to /api/review/coach/discuss. Engine
+ *  numbers only — the server re-derives kind/setup/facts from the stored game.
+ *  Mirrors the explain route's trust boundary. */
+export type CoachTurnRequest = {
+	source: ReviewSource;
+	gameId: string;
+	/** Identity → re-derived server-side. */
+	ply: number;
+	fenBefore: string;
+	/** Validated vs the stored game's moves[ply-1]. */
+	playedUci: string;
+	bestLines: EngineLine[];
+	/** Engine numbers, trusted (like explain). Null when the move ended the game. */
+	replyLine: EngineLine | null;
+	intent: CoachIntent;
+	/** The free text OR the tapped choice label. */
+	playerText?: string;
+	/** Conversational context only — no chess claims. */
+	history: DiscussTurn[];
+};
+
+/** The discuss route's response: the coach turn plus a `canGuide` affordance hint
+ *  (added in the route, not by the LLM). */
+export type CoachTurnResponse = DiscussResponse & {
+	/** Whether a "guide me" affordance makes sense next. */
+	canGuide: boolean;
 };

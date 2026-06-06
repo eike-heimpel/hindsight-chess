@@ -11,13 +11,20 @@
 		moves,
 		activePly,
 		dotColor,
-		onSelect
+		onSelect,
+		momentPlies,
+		momentColor = 'var(--brand)'
 	}: {
 		moves: ReviewMove[];
 		activePly: number;
 		/** Quality colour for a ply, or null before the game is analyzed. */
 		dotColor: (ply: number) => string | null;
 		onSelect: (ply: number) => void;
+		/** Plies to flag as turning points (coach surface). Off by default — the
+		 *  live review route passes none, so nothing is highlighted there. */
+		momentPlies?: Set<number>;
+		/** Colour of the turning-point marker. */
+		momentColor?: string;
 	} = $props();
 
 	type Pair = { no: number; white?: ReviewMove; black?: ReviewMove };
@@ -41,7 +48,12 @@
 				>
 				{#if pair.white}
 					<button
-						class="move {activePly === pair.white.ply ? 'move-active' : ''}"
+						class="move {activePly === pair.white.ply ? 'move-active' : ''} {momentPlies?.has(
+							pair.white.ply
+						)
+							? 'move-moment'
+							: ''}"
+						style={momentPlies?.has(pair.white.ply) ? `--moment: ${momentColor};` : ''}
 						onclick={() => onSelect(pair.white!.ply)}
 					>
 						{#if wColor}<span
@@ -54,7 +66,12 @@
 				{/if}
 				{#if pair.black}
 					<button
-						class="move {activePly === pair.black.ply ? 'move-active' : ''}"
+						class="move {activePly === pair.black.ply ? 'move-active' : ''} {momentPlies?.has(
+							pair.black.ply
+						)
+							? 'move-moment'
+							: ''}"
+						style={momentPlies?.has(pair.black.ply) ? `--moment: ${momentColor};` : ''}
 						onclick={() => onSelect(pair.black!.ply)}
 					>
 						{#if bColor}<span
@@ -105,5 +122,9 @@
 		background: var(--text);
 		color: var(--bg);
 		font-weight: 600;
+	}
+	/* Turning-point marker (coach surface). Off unless `momentPlies` is passed. */
+	.move-moment {
+		box-shadow: inset 2px 0 0 var(--moment);
 	}
 </style>

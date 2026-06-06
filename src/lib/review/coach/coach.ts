@@ -1,6 +1,7 @@
 /**
- * Server-side coach call for the spike: prompt → Gemini Flash → validated
- * DiscussResponse. Boundary code, so it returns a Result rather than throwing.
+ * Server-side coach call: prompt → LLM → validated DiscussResponse. Boundary
+ * code, so it returns a Result rather than throwing. The route adds `canGuide`
+ * to form the CoachTurnResponse.
  */
 import { chatCompletion } from '$lib/llm/openrouterClient';
 import { getCoachSpikeModel, getOpenRouterApiKey } from '$lib/server/env';
@@ -46,9 +47,12 @@ function coerce(value: unknown): DiscussResponse {
 				.map((c) => c.trim())
 		: [];
 
-	const done = typeof v.done === 'boolean' ? v.done : choices.length === 0;
+	// `wrapUp` is the contract field; accept the legacy `done` as an alias. Default
+	// advisory-false (the input never hides), unless there are no choices to offer.
+	const rawWrap = typeof v.wrapUp === 'boolean' ? v.wrapUp : v.done;
+	const wrapUp = typeof rawWrap === 'boolean' ? rawWrap : choices.length === 0;
 
-	return { message, show, learnings, choices, done };
+	return { message, show, learnings, choices, wrapUp };
 }
 
 export async function discuss(req: DiscussRequest): Promise<Result<DiscussResponse>> {
@@ -58,15 +62,14 @@ export async function discuss(req: DiscussRequest): Promise<Result<DiscussRespon
 		raw = await chatCompletion({
 			apiKey: getOpenRouterApiKey(),
 			model: getCoachSpikeModel(),
-			title: 'hindsight-coach-spike',
+			title: 'hindsight-coach',
 			temperature: 0.4,
-			// Gemini Flash 3.5 mandates reasoning. Cap effort low and leave plenty
-			// of token headroom so the chain-of-thought doesn't truncate the JSON.
-			// Longer timeout than the default: this spike route isn't on the 10s
-			// Vercel path yet.
+			// Gemini Flash mandates reasoning. Cap effort low and leave token
+			// headroom so the chain-of-thought doesn't truncate the JSON. Timeout
+			// stays under Vercel's 10s budget — worst case is main + gate + retry.
 			maxTokens: 3000,
 			reasoning: { effort: 'low' },
-			timeoutMs: 25000,
+			timeoutMs: 9000,
 			messages: [
 				{ role: 'system', content: system },
 				{ role: 'user', content: user }

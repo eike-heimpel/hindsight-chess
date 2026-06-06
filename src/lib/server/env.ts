@@ -31,6 +31,14 @@ export function getCoachSpikeModel(): string {
 	return env.COACH_SPIKE_MODEL || 'google/gemini-3.5-flash';
 }
 
+/** Model for the coach's grounding gate — a cheap, fast pass/no-pass check that
+ *  the coach reply doesn't contradict the FACTS (piece/square names, hallucinated
+ *  moves, who's winning). Cheapest flash-lite tier is enough. Override with
+ *  `COACH_GATE_MODEL`. */
+export function getCoachGateModel(): string {
+	return env.COACH_GATE_MODEL || 'google/gemini-2.5-flash-lite';
+}
+
 /**
  * Returns true iff we should use the real OpenRouter coach. False → tests / dev
  * without keys / explicit `USE_STUB_COACH=1`.

@@ -44,19 +44,10 @@
 	}
 </script>
 
-<svelte:head><title>Your games</title></svelte:head>
+<svelte:head><title>Coach</title></svelte:head>
 
 <main class="mx-auto max-w-3xl px-4 py-8">
-	<PageHeader title="Your games" back={{ href: '/home', label: 'Home' }}>
-		{#snippet actions()}
-			<a href="/review/coach" class="-my-1.5 py-1.5 font-medium text-text-2 hover:text-text"
-				>Coach</a
-			>
-			<a href="/review/stats" class="-my-1.5 py-1.5 font-medium text-text-2 hover:text-text"
-				>Stats</a
-			>
-		{/snippet}
-	</PageHeader>
+	<PageHeader title="Coach" back={{ href: '/home', label: 'Home' }} />
 
 	{#if data.account}
 		<div class="mb-6 flex items-center gap-2 text-sm">
@@ -71,15 +62,6 @@
 				>Manage accounts →</a
 			>
 		</div>
-	{/if}
-
-	{#if data.synced !== null}
-		<p
-			class="mb-4 rounded-lg px-3 py-2 text-sm text-good"
-			style="background: color-mix(in srgb, var(--good) 12%, transparent);"
-		>
-			{data.synced === 0 ? 'Already up to date.' : `Synced ${data.synced} new game(s).`}
-		</p>
 	{/if}
 
 	{#if data.account && data.games.length === 0}
@@ -100,7 +82,7 @@
 				{@const oc = outcome(g)}
 				<li>
 					<a
-						href="/review/{g.source}/{g.gameId}?me={encodeURIComponent(me)}"
+						href="/review/coach/{g.source}/{g.gameId}?me={encodeURIComponent(me)}"
 						class="flex items-center gap-3 rounded-xl border border-border bg-surface-1 px-4 py-3 transition-colors hover:border-border-strong hover:bg-surface-2"
 					>
 						<span
