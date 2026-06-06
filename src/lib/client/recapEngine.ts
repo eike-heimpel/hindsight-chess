@@ -79,9 +79,21 @@ export function createRealRecapEngine({
 						if (res.ok) {
 							const { text } = (await res.json()) as { text: string };
 							if (text) onPatch({ headline: text });
+						} else {
+							console.warn('recap_headline_fetch_failed', {
+								source: recap.source,
+								gameId: recap.gameId,
+								status: res.status
+							});
 						}
-					} catch {
-						// Headline is non-critical — keep the template line.
+					} catch (e) {
+						// Headline is non-critical — keep the template line, but log so a
+						// sustained headline failure is visible rather than silent.
+						console.warn('recap_headline_fetch_failed', {
+							source: recap.source,
+							gameId: recap.gameId,
+							error: e instanceof Error ? e.message : String(e)
+						});
 					}
 				}
 				onPatch({ phase: 'done' });

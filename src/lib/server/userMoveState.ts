@@ -85,7 +85,23 @@ type MoveStateDoc = MoveState & {
 const collection = collectionAccessor<MoveStateDoc>('userMoveState', (c) =>
 	Promise.all([
 		c.createIndex({ userId: 1, source: 1, gameId: 1 }),
-		c.createIndex({ userId: 1, updatedAt: -1 })
+		c.createIndex({ userId: 1, updatedAt: -1 }),
+		// Shortlist `$or` branches. Each is a partial index keyed `{userId, updatedAt}`
+		// so the planner can serve a clause AND its newest-first sort from the index
+		// — an index union instead of a per-user collection scan that grows with the
+		// user's touched-move count. (`$or` over `$exists` had no covering index.)
+		c.createIndex(
+			{ userId: 1, updatedAt: -1 },
+			{ name: 'shortlist_star', partialFilterExpression: { mark: 'star' } }
+		),
+		c.createIndex(
+			{ userId: 1, updatedAt: -1 },
+			{ name: 'shortlist_note', partialFilterExpression: { note: { $exists: true } } }
+		),
+		c.createIndex(
+			{ userId: 1, updatedAt: -1 },
+			{ name: 'shortlist_snapshot', partialFilterExpression: { snapshot: { $exists: true } } }
+		)
 	])
 );
 
@@ -165,9 +181,9 @@ export async function getMoveStatesByRefs(
 	return out;
 }
 
-/** Everything the user starred, noted, or saved — newest-first. Only the `mark`
- *  branch is index-covered; `note`/`snapshot` fall back to a per-user scan,
- *  bounded by the user's touched-move count. */
+/** Everything the user starred, noted, or saved — newest-first. Each `$or` branch
+ *  has a partial index keyed `{userId, updatedAt}` (see the collection's `init`),
+ *  so this is an index union + sort-merge, not a per-user collection scan. */
 export async function listShortlist(userId: string): Promise<MoveState[]> {
 	const c = await collection();
 	const docs = await c

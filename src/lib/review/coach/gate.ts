@@ -105,8 +105,13 @@ export async function llmGate(message: string, factsBlock: string): Promise<Resu
 				}
 			]
 		});
-	} catch {
-		// Fail OPEN: the gate must never block the feature on its own error.
+	} catch (e) {
+		// Fail OPEN: the gate must never block the feature on its own error. But log
+		// it — a sustained gate outage lets UNVERIFIED coach replies through, which
+		// is invisible otherwise.
+		console.warn('coach_gate_failed_open', {
+			error: e instanceof Error ? e.message : String(e)
+		});
 		return ok({ pass: true, reason: '' });
 	}
 

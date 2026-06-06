@@ -217,6 +217,11 @@ export function createCoachThread(opts: {
 	let boardLast = $state<{ from: Square; to: Square } | null>(null);
 	let boardArrow = $state<{ from: Square; to: Square } | null>(null);
 	let playToken = 0; // cancels in-flight playback when the ply changes
+	// Cancels an in-flight coach turn when the subject changes (open/openExplore/
+	// finish): a reply that lands after the player navigated away must NOT fold
+	// into the now-current subject's conversation. Separate from `playToken`, which
+	// also bumps on normal show-playback and must not cancel a turn.
+	let turnToken = 0;
 
 	// Frames for the current ply, rebuilt on `open`.
 	let bestFrames: Frame[] = [];
@@ -296,6 +301,7 @@ export function createCoachThread(opts: {
 		const deep = deepEvals.get(subjectKey(s.ref));
 		if (!deep) return; // open() resolves the eval before any turn
 		const key = subjectKey(s.ref);
+		const token = turnToken;
 
 		thinking = true;
 		convError = null;
@@ -315,6 +321,9 @@ export function createCoachThread(opts: {
 				playerText,
 				history: messages
 			});
+			// The player navigated to another subject (or finished) while this turn was
+			// in flight — drop the stale reply rather than fold it into the wrong thread.
+			if (token !== turnToken) return;
 			messages = [...messages, { role: 'coach', content: resp.message }];
 			choices = resp.choices;
 			canGuide = resp.canGuide;
@@ -333,9 +342,12 @@ export function createCoachThread(opts: {
 				status: wrapUpReady ? 'wrapped' : 'open'
 			});
 		} catch (e) {
+			if (token !== turnToken) return; // stale error from an abandoned subject
 			convError = e instanceof Error ? e.message : String(e);
 		} finally {
-			thinking = false;
+			// Only clear the indicator if this turn is still the current one; a stale
+			// turn's finally must not unset `thinking` for the subject that replaced it.
+			if (token === turnToken) thinking = false;
 		}
 	}
 
@@ -359,6 +371,10 @@ export function createCoachThread(opts: {
 	 *  the bar, resolve the deep eval, build playback frames, then either resume a
 	 *  saved conversation or (variant A) fire the opener. */
 	async function openSubject(s: Subject) {
+		// Invalidate any in-flight turn from the previous subject before we swap, and
+		// clear the indicator (a stale turn's finally no longer touches `thinking`).
+		turnToken++;
+		thinking = false;
 		subject = s;
 		messages = [];
 		choices = [];
@@ -532,6 +548,7 @@ export function createCoachThread(opts: {
 				persist(s.ref, { messages, learnings: learningsForKey(key), choices, status: 'wrapped' });
 			}
 			playToken++;
+			turnToken++; // drop any in-flight turn for the subject we're leaving
 			subject = null;
 			messages = [];
 			choices = [];

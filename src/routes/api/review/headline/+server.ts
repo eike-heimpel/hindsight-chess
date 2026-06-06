@@ -55,8 +55,15 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 		const text = await writer.write(buildHeadlineFacts(perspective));
 		await saveHeadline({ source, gameId, side, text, createdAt: new Date().toISOString() });
 		return json({ text, llm: true });
-	} catch {
-		// Headline is non-critical — never fail the card over it.
+	} catch (e) {
+		// Headline is non-critical — never fail the card over it. Log so a sustained
+		// LLM/headline outage is visible instead of silently serving templates.
+		console.warn('headline_llm_failed', {
+			source,
+			gameId,
+			side,
+			error: e instanceof Error ? e.message : String(e)
+		});
 		return json({ text: templateHeadline(perspective), llm: false });
 	}
 };

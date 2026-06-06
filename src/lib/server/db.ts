@@ -21,7 +21,15 @@ function ensureEntry(): NonNullable<Cached> {
 	const slot = cache();
 	if (slot.value) return slot.value;
 
-	const client = new MongoClient(getMongoUri(), { maxPoolSize: 5 });
+	const client = new MongoClient(getMongoUri(), {
+		maxPoolSize: 5,
+		// Fail fast on Vercel: a down/slow Mongo must not pin a serverless invocation
+		// for the driver's 30s default. Connect/select bail at 5s; the socket caps at
+		// 10s (our queries are small indexed reads, well inside the function budget).
+		serverSelectionTimeoutMS: 5000,
+		connectTimeoutMS: 5000,
+		socketTimeoutMS: 10000
+	});
 	const dbPromise = client.connect().then(() => client.db(getMongoDbName()));
 	const entry = { client, dbPromise };
 	slot.value = entry;
