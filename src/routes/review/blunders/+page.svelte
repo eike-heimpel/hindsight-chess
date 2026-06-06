@@ -159,10 +159,12 @@
 	// server re-reads the prose and rebuilds the facts. Optimistically reflects
 	// saved state from entry.snapshot.
 	let saving = $state<Record<string, boolean>>({});
+	let saveError = $state<Record<string, string>>({});
 	async function saveSnapshot(entry: BlunderEntry) {
 		const id = explainId(entry);
 		if (saving[id] || entry.snapshot) return;
 		saving = { ...saving, [id]: true };
+		saveError = { ...saveError, [id]: '' };
 		try {
 			const gameKey = `${entry.source}:${entry.gameId}`;
 			let game = gameCache[gameKey];
@@ -180,7 +182,11 @@
 				body: JSON.stringify(built.value)
 			});
 			if (!res.ok) throw new Error(`save failed (${res.status})`);
-			entry.snapshot = currentExplain?.text;
+			// Read the saved prose off the entry being saved, not the `current`-bound
+			// derived — they coincide today but the entry is the right source.
+			entry.snapshot = explains[id]?.text ?? entry.cachedExplanation;
+		} catch (e) {
+			saveError = { ...saveError, [id]: e instanceof Error ? e.message : String(e) };
 		} finally {
 			saving = { ...saving, [id]: false };
 		}
@@ -192,11 +198,14 @@
 	// an expected state under the recency window / time-class filter.
 	onMount(() => {
 		const c = data.cursor;
-		if (!c) return;
-		const found = entries.findIndex(
-			(e) => e.source === c.source && e.gameId === c.gameId && e.ply === c.ply
-		);
-		if (found !== -1) index = found;
+		if (c) {
+			const found = entries.findIndex(
+				(e) => e.source === c.source && e.gameId === c.gameId && e.ply === c.ply
+			);
+			if (found !== -1) index = found;
+		}
+		// Drop a pending fire-and-forget cursor POST if we navigate away mid-debounce.
+		return () => clearTimeout(cursorTimer);
 	});
 
 	// --- on-demand grounded explanation (reuses the move explainer) ---
@@ -354,6 +363,10 @@
 											>
 												{saving[explainId(current)] ? 'Saving…' : 'Save this explanation'}
 											</button>
+											{#if saveError[explainId(current)]}<span
+													class="ml-2 text-xs"
+													style="color: {C.bad};">{saveError[explainId(current)]}</span
+												>{/if}
 										{/if}
 									</div>
 								{:else if currentExplain?.loading}

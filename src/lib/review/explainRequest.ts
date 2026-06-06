@@ -15,6 +15,13 @@ import type { ReviewSource } from './types';
 export const UCI = /^[a-h][1-8][a-h][1-8][qrbn]?$/;
 export const SOURCES: ReviewSource[] = ['chesscom', 'lichess', 'upload'];
 
+/** chess.com ids are the last URL path segment (plain digits); lichess are
+ *  alphanumeric. Cap length and restrict to a safe id charset before a gameId
+ *  enters a Mongo `_id` or query — the extra `:_/-` chars are defensive
+ *  headroom, not required by today's sources. Shared by the engine routes and
+ *  the bare move-state routes so neither can drift on what it accepts. */
+export const GAME_ID = /^[A-Za-z0-9:_/-]{1,128}$/;
+
 /** Validate one engine line ({cp, pv, moveUci}); pushes any problems to `errors`. */
 export function parseEngineLine(
 	value: unknown,
@@ -52,7 +59,7 @@ export function parseEngineRequestBase(
 	const v = value as Record<string, unknown>;
 
 	if (!SOURCES.includes(v.source as ReviewSource)) errors.push('source is invalid');
-	if (typeof v.gameId !== 'string' || !v.gameId) errors.push('gameId must be a non-empty string');
+	if (typeof v.gameId !== 'string' || !GAME_ID.test(v.gameId)) errors.push('gameId is invalid');
 	if (typeof v.ply !== 'number' || !Number.isInteger(v.ply) || v.ply < 1) {
 		errors.push('ply must be a positive integer');
 	}
