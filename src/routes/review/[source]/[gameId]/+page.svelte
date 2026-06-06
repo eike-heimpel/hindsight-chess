@@ -598,7 +598,7 @@
 							</div>
 						{/if}
 					{/if}
-					{#key thread.currentPly}
+					{#key thread.currentRef && `${thread.currentRef.ply}:${thread.currentRef.line?.join('-') ?? ''}`}
 						<CoachPanel {thread} />
 					{/key}
 				{:else}
