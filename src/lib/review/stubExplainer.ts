@@ -7,7 +7,7 @@ import type { ReviewExplainer, ReviewExplainerOutput } from './explainer.ts';
  * shape the OpenRouter impl is expected to roughly produce.
  */
 export class StubReviewExplainer implements ReviewExplainer {
-	async explain(facts: ReviewExplainFacts): Promise<ReviewExplainerOutput> {
+	async explain(facts: ReviewExplainFacts, _correction?: string): Promise<ReviewExplainerOutput> {
 		const head = `${facts.mover} played ${facts.moveNumber}. ${facts.playedSan} (${facts.classification}).`;
 		const mainLine = facts.lines[0]?.sanLine;
 

@@ -104,6 +104,24 @@ describe('buildExplainFacts', () => {
 		expect(f.nature.threwAwayWin).toBe(true);
 	});
 
+	it('surfaces the board-diff facts: nowDefends, hangingAfter, and census (f5-style)', () => {
+		// Black pawns e4 + f7, White knight f3 attacks e4. Black plays ...f5,
+		// defending e4. The lie "f5 leaves e4 undefended" must be unsayable.
+		const f = buildExplainFacts({
+			source: 'chesscom',
+			gameId: 'g',
+			ply: 2,
+			fenBefore: '4k3/5p2/8/8/4p3/5N2/8/4K3 b - - 0 1',
+			playedUci: 'f7f5',
+			bestLines: [line('f7f5', ['f7f5'], 20)],
+			replyLine: line('f3e5', ['f3e5'], -20)
+		});
+		expect(f.played.nowDefends).toContainEqual({ pieceEn: 'pawn', square: 'e4' });
+		expect(f.hangingAfter.some((h) => h.square === 'e4')).toBe(false);
+		expect(f.census.black).toContainEqual({ pieceEn: 'pawn', square: 'f5' });
+		expect(f.census.white).toContainEqual({ pieceEn: 'knight', square: 'f3' });
+	});
+
 	it('handles a checkmating move with no reply line', () => {
 		// Scholar's mate: after 1.e4 e5 2.Bc4 Nc6 3.Qh5 Nf6??, White plays Qxf7#.
 		const f = buildExplainFacts({
@@ -139,6 +157,27 @@ describe('buildExplainPrompt', () => {
 		expect(system).toContain('reply line');
 		// The refutation is labelled as the punishment, i.e. the lead evidence.
 		expect(user).toContain('the punishment line');
+	});
+
+	it('renders the board-diff facts and hardens the no-undefended-lie rules', () => {
+		const { system, user } = buildExplainPrompt(
+			buildExplainFacts({
+				source: 'chesscom',
+				gameId: 'g',
+				ply: 2,
+				fenBefore: '4k3/5p2/8/8/4p3/5N2/8/4K3 b - - 0 1',
+				playedUci: 'f7f5',
+				bestLines: [line('f7f5', ['f7f5'], 20)],
+				replyLine: line('f3e5', ['f3e5'], -20)
+			})
+		);
+		// Hardened grounding rules present.
+		expect(system).toContain('defended by: nothing');
+		expect(system).toContain('Do NOT invent a capturing move');
+		// The defends/attacks line and a census block are rendered.
+		expect(user).toContain('now defends: pawn on e4');
+		expect(user).toContain('Board after the move played');
+		expect(user).toContain('currently hanging');
 	});
 
 	it('surfaces error-nature signals as a Signals line', () => {

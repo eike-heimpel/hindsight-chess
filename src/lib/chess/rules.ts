@@ -39,6 +39,19 @@ export type MoveFacts = {
 	attackersOfTo: Threat[];
 	/** After the move: own pieces that defend `to` (could recapture). */
 	defendersOfTo: Threat[];
+	/** After the move: friendly pieces the moved piece (on `to`) now defends. */
+	nowDefends: Threat[];
+	/** After the move: enemy pieces the moved piece (on `to`) now attacks. */
+	nowAttacks: Threat[];
+	/** After the move: the mover's own pieces that are attacked by the opponent
+	 *  and have ZERO friendly defenders — truly hanging. Both lists included for
+	 *  context. */
+	hangingAfter: {
+		pieceDe: string;
+		square: Square;
+		attackers: Threat[];
+		defenders: Threat[];
+	}[];
 };
 
 /**
@@ -164,6 +177,45 @@ export function describeMove(fen: string, move: string): MoveFacts {
 			return { pieceDe: PIECE_DE[piece.type], square: sq as Square };
 		});
 
+	// Walk the whole board once to compute, from the moved piece's POV:
+	//  - what it now defends/attacks (squares it geometrically reaches), and
+	//  - which of the mover's pieces are hanging (enemy-attacked, no defender).
+	// chess.js `attackers(sq, color)` is pseudo-geometric: it returns every piece
+	// of `color` that hits `sq` regardless of occupant, and may include pinned
+	// pieces. That's acceptable here — we ground the LLM in the geometry, not a
+	// full static-exchange evaluation.
+	const nowDefends: Threat[] = [];
+	const nowAttacks: Threat[] = [];
+	const hangingAfter: MoveFacts['hangingAfter'] = [];
+
+	const board = game.board();
+	for (let r = 0; r < 8; r++) {
+		for (let f = 0; f < 8; f++) {
+			const cell = board[r]?.[f];
+			if (!cell) continue;
+			const sq = (String.fromCharCode(97 + f) + String(8 - r)) as ChessJsSquare;
+			const occupantDe = PIECE_DE[cell.type];
+
+			if (cell.color === movedColor) {
+				if (sq !== to && game.attackers(sq, movedColor).includes(to as ChessJsSquare)) {
+					nowDefends.push({ pieceDe: occupantDe, square: sq as Square });
+				}
+				const enemyAttackers = toThreats(game.attackers(sq, opposite));
+				const friendlyDefenders = toThreats(game.attackers(sq, movedColor));
+				if (enemyAttackers.length > 0 && friendlyDefenders.length === 0) {
+					hangingAfter.push({
+						pieceDe: occupantDe,
+						square: sq as Square,
+						attackers: enemyAttackers,
+						defenders: friendlyDefenders
+					});
+				}
+			} else if (game.attackers(sq, movedColor).includes(to as ChessJsSquare)) {
+				nowAttacks.push({ pieceDe: occupantDe, square: sq as Square });
+			}
+		}
+	}
+
 	return {
 		from: result.from as Square,
 		to,
@@ -174,7 +226,10 @@ export function describeMove(fen: string, move: string): MoveFacts {
 		givesCheck: game.isCheck(),
 		isCheckmate: game.isCheckmate(),
 		attackersOfTo: toThreats(game.attackers(to as ChessJsSquare, opposite)),
-		defendersOfTo: toThreats(game.attackers(to as ChessJsSquare, movedColor))
+		defendersOfTo: toThreats(game.attackers(to as ChessJsSquare, movedColor)),
+		nowDefends,
+		nowAttacks,
+		hangingAfter
 	};
 }
 

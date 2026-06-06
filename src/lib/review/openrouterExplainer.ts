@@ -28,14 +28,17 @@ export class OpenRouterReviewExplainer implements ReviewExplainer {
 		if (!opts.model) throw new Error('OpenRouterReviewExplainer: model is required');
 	}
 
-	async explain(facts: ReviewExplainFacts): Promise<ReviewExplainerOutput> {
+	async explain(facts: ReviewExplainFacts, correction?: string): Promise<ReviewExplainerOutput> {
 		const { system, user } = buildExplainPrompt(facts);
+		const userMessage = correction
+			? `${user}\n\nA fact-check rejected your previous draft for these PROVEN-FALSE claims. Rewrite the annotation so none of them appear, staying strictly within the facts above:\n- ${correction}`
+			: user;
 		const text = await chatCompletion({
 			apiKey: this.opts.apiKey,
 			model: this.opts.model,
 			messages: [
 				{ role: 'system', content: system },
-				{ role: 'user', content: user }
+				{ role: 'user', content: userMessage }
 			],
 			temperature: 0.3,
 			maxTokens: 2000,

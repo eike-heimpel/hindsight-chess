@@ -9,7 +9,7 @@
  * generalised to any position and an adult audience: the prompt may use chess
  * terms, but every claim must trace back to a line/eval/fact in here.
  */
-import { applyMove, describeMove, sideToMove } from '$lib/chess/rules';
+import { applyMove, boardCensus, describeMove, sideToMove } from '$lib/chess/rules';
 import { isMateScore, MATE_SCORE_BASE, type EngineLine } from '$lib/engine/engine';
 import type { Square } from '$lib/chess/types';
 import { winPercent } from './winPercent';
@@ -50,6 +50,24 @@ export type ReviewExplainFacts = {
 		isCheckmate: boolean;
 		attackersOfTo: AttackerEn[];
 		defendersOfTo: AttackerEn[];
+		/** Friendly pieces the moved piece now defends from `to`. */
+		nowDefends: AttackerEn[];
+		/** Enemy pieces the moved piece now attacks from `to`. */
+		nowAttacks: AttackerEn[];
+	};
+	/** The mover's own pieces that are attacked by the opponent with no defender —
+	 *  a whole-board hanging picture after the move. */
+	hangingAfter: {
+		pieceEn: string;
+		square: Square;
+		attackedByEn: AttackerEn[];
+		defendedByEn: AttackerEn[];
+	}[];
+	/** Full piece census of the position the reply line starts from (after the
+	 *  played move) — grounds the model so it can't invent pieces. */
+	census: {
+		white: { pieceEn: string; square: Square }[];
+		black: { pieceEn: string; square: Square }[];
 	};
 	/** Eval after the played move, pawns from the mover's POV (e.g. "-1.4", "M3"). */
 	evalPlayed: string;
@@ -150,6 +168,8 @@ export function buildExplainFacts(req: ReviewExplainRequest): ReviewExplainFacts
 	const toAttackersEn = (xs: { pieceDe: string; square: Square }[]): AttackerEn[] =>
 		xs.map((t) => ({ pieceEn: en(t.pieceDe), square: t.square }));
 
+	const census = boardCensus(fenAfter);
+
 	return {
 		mover: mover === 'w' ? 'White' : 'Black',
 		moveNumber: fullMoveNumber(fenBefore),
@@ -161,7 +181,19 @@ export function buildExplainFacts(req: ReviewExplainRequest): ReviewExplainFacts
 			givesCheck: played.givesCheck,
 			isCheckmate: played.isCheckmate,
 			attackersOfTo: toAttackersEn(played.attackersOfTo),
-			defendersOfTo: toAttackersEn(played.defendersOfTo)
+			defendersOfTo: toAttackersEn(played.defendersOfTo),
+			nowDefends: toAttackersEn(played.nowDefends),
+			nowAttacks: toAttackersEn(played.nowAttacks)
+		},
+		hangingAfter: played.hangingAfter.map((h) => ({
+			pieceEn: en(h.pieceDe),
+			square: h.square,
+			attackedByEn: toAttackersEn(h.attackers),
+			defendedByEn: toAttackersEn(h.defenders)
+		})),
+		census: {
+			white: census.white.map((p) => ({ pieceEn: en(p.pieceDe), square: p.square })),
+			black: census.black.map((p) => ({ pieceEn: en(p.pieceDe), square: p.square }))
 		},
 		evalPlayed: evalText(cpAfterMover),
 		classification: classifyMove({ delta, isBest }),

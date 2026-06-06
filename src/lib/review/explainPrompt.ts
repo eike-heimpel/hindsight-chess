@@ -28,6 +28,9 @@ Grounding (do not break):
 - Cite moves in standard algebraic notation (SAN), exactly as written.
 - Evaluations are in pawns from ${mover}'s point of view: positive favours ${mover}, negative favours the opponent. "M5" = mate in 5 for ${mover}; "-M5" = ${mover} gets mated in 5.
 - You may name a tactical motif (hanging piece, fork, pin, skewer, discovered attack, back-rank mate, overload, etc.) only when the given variation actually shows it.
+- A square is undefended ONLY if it appears with "defended by: nothing". If a square has any defender listed, you MUST NOT call it undefended, loose, hanging, or "free".
+- Only describe a capture or tactic that appears in the engine lines or the reply line. Do NOT invent a capturing move (e.g. "Nxe4") that is not in those lines.
+- The pieces the moved piece now defends and now attacks are listed explicitly. Use them; do not claim the move abandoned or stopped defending a square it still defends.
 
 If the move played is the engine's top choice (best / good): explain its idea and where it's heading, in one or two short sentences. Done.
 
@@ -59,6 +62,12 @@ function buildUserMessage(f: ReviewExplainFacts): string {
 		f.nature.threwAwayWin && 'throws away a clearly winning position'
 	].filter(Boolean);
 
+	const hanging = f.hangingAfter.length
+		? f.hangingAfter
+				.map((h) => `${h.pieceEn} on ${h.square} (attacked by: ${fmtAttackers(h.attackedByEn)})`)
+				.join('; ')
+		: 'none';
+
 	return [
 		`Mover: ${f.mover}`,
 		`Move played: ${f.moveNumber}. ${f.playedSan}${checkNote}`,
@@ -68,6 +77,12 @@ function buildUserMessage(f: ReviewExplainFacts): string {
 		`Win chance for ${f.mover}: ${Math.round(f.winBefore)}% before → ${Math.round(f.winAfter)}% after`,
 		`Evaluation after the move played (${f.mover} POV): ${f.evalPlayed}`,
 		`Landing square ${f.played.to} after the move — attacked by: ${fmtAttackers(f.played.attackersOfTo)}; defended by: ${fmtAttackers(f.played.defendersOfTo)}`,
+		`After ${f.playedSan}, the ${f.played.pieceEn} on ${f.played.to} now defends: ${fmtAttackers(f.played.nowDefends)}; and now attacks: ${fmtAttackers(f.played.nowAttacks)}`,
+		`${f.mover}'s pieces currently hanging (attacked, no defender): ${hanging}`,
+		'',
+		`Board after the move played:`,
+		`  White: ${fmtCensus(f.census.white)}`,
+		`  Black: ${fmtCensus(f.census.black)}`,
 		'',
 		`Engine top lines from before the move (${f.mover} POV):`,
 		lines,
@@ -77,6 +92,11 @@ function buildUserMessage(f: ReviewExplainFacts): string {
 		'',
 		'Write the annotation now: 2–5 sentences, plain prose, grounded only in the facts above.'
 	].join('\n');
+}
+
+function fmtCensus(xs: { pieceEn: string; square: string }[]): string {
+	if (xs.length === 0) return 'none';
+	return xs.map((x) => `${x.pieceEn} ${x.square}`).join(', ');
 }
 
 function fmtAttackers(xs: { pieceEn: string; square: string }[]): string {

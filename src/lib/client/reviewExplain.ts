@@ -14,7 +14,7 @@ import { safeEvaluate } from './engine';
  * prose is cached as text, so reproducibility doesn't matter and bounded
  * latency does.
  */
-export const EXPLAIN_MULTIPV = 3;
+export const EXPLAIN_MULTIPV = 5;
 export const EXPLAIN_MOVETIME_MS = 3500;
 
 /**
@@ -47,9 +47,17 @@ export async function buildExplainRequest(
 	// The reply line only exists if the move didn't end the game.
 	let replyLine: EngineLine | null = null;
 	if (!isCheckmate(move.fenAfter) && !isStalemate(move.fenAfter)) {
-		const after = await safeEvaluate(move.fenAfter, { movetimeMs: EXPLAIN_MOVETIME_MS });
+		// Search wider (multiPv) without spending more time — we still keep only the
+		// single best reply, but the wider search firms up that best line's eval.
+		const after = await safeEvaluate(move.fenAfter, {
+			movetimeMs: EXPLAIN_MOVETIME_MS,
+			multiPv: 3
+		});
 		if (!after.ok) return err(after.error.kind, after.error.message);
-		replyLine = { cp: after.value.cp, pv: after.value.pv ?? [], moveUci: after.value.bestMoveUci };
+		replyLine =
+			after.value.lines && after.value.lines.length > 0
+				? after.value.lines[0]!
+				: { cp: after.value.cp, pv: after.value.pv ?? [], moveUci: after.value.bestMoveUci };
 	}
 	onProgress?.(2, 2);
 

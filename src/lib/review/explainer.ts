@@ -13,5 +13,8 @@ export type ReviewExplainerOutput = {
 };
 
 export interface ReviewExplainer {
-	explain(facts: ReviewExplainFacts): Promise<ReviewExplainerOutput>;
+	/** `correction`, when set, is fact-check feedback on a rejected first draft —
+	 *  the impl appends it so the model rewrites away from the proven-false claims
+	 *  (see the gate loop in `api/review/explain`). */
+	explain(facts: ReviewExplainFacts, correction?: string): Promise<ReviewExplainerOutput>;
 }

@@ -2,6 +2,8 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { requireUser } from '$lib/server/auth';
 import { buildExplainFacts } from '$lib/review/explain';
+import { validateExplanation, buildFallbackExplanation } from '$lib/review/explainGate';
+import { applyMove } from '$lib/chess/rules';
 import { parseExplainRequest } from '$lib/review/explainRequest';
 import { getReviewGame } from '$lib/server/reviewGames';
 import { getExplanation, saveExplanation } from '$lib/server/reviewExplanations';
@@ -41,7 +43,21 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 		throw error(400, `Could not ground explanation: ${e instanceof Error ? e.message : String(e)}`);
 	}
 
-	const { text } = await makeReviewExplainer().explain(facts);
+	// Validate against chess.js ground truth, regenerate once with the proven-false
+	// claims fed back, then fall back to a facts-only blurb. Only verified text is
+	// ever cached or returned — a board claim that contradicts chess.js never ships.
+	const explainer = makeReviewExplainer();
+	const fenAfter = applyMove(req.fenBefore, req.playedUci).fen;
+	const gateCtx = { fenBefore: req.fenBefore, fenAfter, facts };
+
+	let text = (await explainer.explain(facts)).text;
+	let verdict = validateExplanation(text, gateCtx);
+	if (!verdict.ok) {
+		text = (await explainer.explain(facts, verdict.violations.join('\n- '))).text;
+		verdict = validateExplanation(text, gateCtx);
+		if (!verdict.ok) text = buildFallbackExplanation(facts);
+	}
+
 	await saveExplanation({
 		source: req.source,
 		gameId: req.gameId,
