@@ -109,6 +109,10 @@ npm run calibrate:review -- <chesscom-user> [sampleSize]
   throws. No fallback logic that hides errors. A `try/catch` that swallows is a
   smell: rely on the `Result` for _expected_ failures and let _unexpected_ ones
   surface (see `api/review/sync`).
+- **Pre-production — no users, no data to preserve.** Build the thing it should
+  be: refactor freely, rename, change schemas in place, delete superseded code
+  and routes. NEVER add backwards-compatibility shims, migrations, deprecation
+  paths, or dual-read/dual-write fallbacks. If an old shape is wrong, replace it.
 - No abstractions/layers without a concrete need; no backwards-compat shims.
 - Comments explain _why_, not _what_.
 

@@ -17,8 +17,21 @@ import type { DiscussTurn, Learning } from '$lib/review/coach/types';
  * reads don't have to parse the composite id. See `docs/persistence.md`.
  */
 
-/** Identity of one move, the atom of per-user state. */
-export type MoveRef = { source: ReviewSource; gameId: string; ply: number };
+/**
+ * Identity of one move, the atom of per-user state. A bare `{source, gameId, ply}`
+ * is a REAL game move. An optional `line` (UCI moves from the position the player
+ * branched at — `ply` is the branch point, 0 = the start) makes it an EXPLORED
+ * alternative: a "what if I'd played this" position the player examined on the
+ * analysis board and chose to keep a note / star / coach conversation on. The same
+ * four facets attach either way; the atom is "a position you examined", of which a
+ * played move is the special case where `line` is absent. See `docs/persistence.md`.
+ */
+export type MoveRef = {
+	source: ReviewSource;
+	gameId: string;
+	ply: number;
+	line?: string[];
+};
 
 /** Structured, re-derived snapshot of the engine facts at save time — the single
  *  source of truth a standalone share-card can later render from. Never copied
@@ -51,15 +64,19 @@ export type MoveState = {
 };
 
 type MoveStateDoc = MoveState & {
-	/** `${userId}:${source}:${gameId}:${ply}` — composite, for uniqueness only.
-	 *  `ply` is appended last and is a pure integer; `userId`/`source` are
-	 *  delimiter-free, so a colon-bearing `gameId` can't shift the boundary. Never
-	 *  reorder the segments. */
+	/** `${userId}:${source}:${gameId}:${ply}` for a real move, with `:${uci-line}`
+	 *  appended for an explored alternative. `ply` is a pure integer and the UCI
+	 *  line is `[a-h1-8qrbn-]` only (no colon), so a colon-bearing `gameId` can't
+	 *  shift the boundary. Never reorder the segments. */
 	_id: string;
 	userId: string; // indexed field, not just an _id segment
 	source: ReviewSource;
 	gameId: string;
 	ply: number;
+	/** Present only on explored alternatives — the UCI line from the `ply` branch
+	 *  point. A separate indexed-friendly field (not just an `_id` segment) so the
+	 *  per-game read can split alternatives from real moves without parsing `_id`. */
+	line?: string[];
 	side: Side; // DERIVED server-side via the ownership gate, never trusted from a body
 	updatedAt: Date;
 };
@@ -71,15 +88,22 @@ const collection = collectionAccessor<MoveStateDoc>('userMoveState', (c) =>
 	])
 );
 
-/** Composite `_id`. Load-bearing ordering — see the doc. */
-export function moveStateId(userId: string, ref: MoveRef): string {
-	return `${userId}:${ref.source}:${ref.gameId}:${ref.ply}`;
+/** The `:${uci-line}` suffix for an explored alternative, or '' for a real move.
+ *  UCI moves are `[a-h1-8qrbn]` only, joined with '-' — no colon, so the segment
+ *  boundary stays intact. */
+function lineSuffix(line?: string[]): string {
+	return line && line.length ? `:${line.join('-')}` : '';
 }
 
-/** `source:gameId:ply` — the per-game-overlay map key (no userId; the map is
- *  already scoped to one user). */
+/** Composite `_id`. Load-bearing ordering — see the doc. */
+export function moveStateId(userId: string, ref: MoveRef): string {
+	return `${userId}:${ref.source}:${ref.gameId}:${ref.ply}${lineSuffix(ref.line)}`;
+}
+
+/** `source:gameId:ply[:line]` — the per-game-overlay map key (no userId; the map
+ *  is already scoped to one user). */
 function refKey(ref: MoveRef): string {
-	return `${ref.source}:${ref.gameId}:${ref.ply}`;
+	return `${ref.source}:${ref.gameId}:${ref.ply}${lineSuffix(ref.line)}`;
 }
 
 /** Strip the Mongo-only / identity keys, leaving the facet view. */
@@ -93,18 +117,37 @@ function toState(doc: MoveStateDoc): MoveState {
 	return state;
 }
 
-/** Per-game overlay, `ply → MoveState`. Mirrors `listExplanations` — one indexed
- *  range read of the user's touched moves in this game. */
+/** Per-game overlay of REAL moves, `ply → MoveState`. Mirrors `listExplanations`
+ *  — one indexed range read of the user's touched moves in this game. Explored
+ *  alternatives (`line` present) are excluded so they can't clobber a real move's
+ *  ply; read them with `getGameAlternatives`. */
 export async function getGameMoveStates(
 	userId: string,
 	source: ReviewSource,
 	gameId: string
 ): Promise<Record<number, MoveState>> {
 	const c = await collection();
-	const docs = await c.find({ userId, source, gameId }).toArray();
+	const docs = await c.find({ userId, source, gameId, line: { $exists: false } }).toArray();
 	const out: Record<number, MoveState> = {};
 	for (const d of docs) out[d.ply] = toState(d);
 	return out;
+}
+
+/** One explored alternative the user kept state on: the branch `ply`, the UCI
+ *  `line` from there, and its facets. */
+export type GameAlternative = { ply: number; line: string[]; state: MoveState };
+
+/** The user's explored alternatives in this game — the "what if" lines they
+ *  starred, noted, or held a coach conversation on. Same indexed range read as
+ *  the real-move overlay, filtered to docs that carry a `line`. */
+export async function getGameAlternatives(
+	userId: string,
+	source: ReviewSource,
+	gameId: string
+): Promise<GameAlternative[]> {
+	const c = await collection();
+	const docs = await c.find({ userId, source, gameId, line: { $exists: true } }).toArray();
+	return docs.map((d) => ({ ply: d.ply, line: d.line!, state: toState(d) }));
 }
 
 /** Batch read by ref, `source:gameId:ply → MoveState` — for the shortlist and
@@ -160,6 +203,9 @@ async function upsertFacet(
 				source: ref.source,
 				gameId: ref.gameId,
 				ply: ref.ply,
+				// Only stamp `line` for an alternative — a real move's doc must not
+				// carry the field, or the `$exists` split in the readers would misfile it.
+				...(ref.line && ref.line.length ? { line: ref.line } : {}),
 				side
 			}
 		},

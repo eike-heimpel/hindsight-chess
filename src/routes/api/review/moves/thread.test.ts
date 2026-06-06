@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateThread } from './+server.ts';
+import { validateThread } from './validateThread.ts';
 
 /**
  * Validation-only tests for the `thread` facet payload (the 400 path of the moves
