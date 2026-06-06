@@ -39,9 +39,9 @@
 
 <h2>4. Third-party platforms</h2>
 <p>
-	When you connect a chess.com or Lichess username, you confirm you are entitled to access that data,
-	and your use of those platforms remains subject to their own terms. We are not affiliated with
-	chess.com or Lichess.
+	When you connect a chess.com or Lichess username, you confirm you are entitled to access that
+	data, and your use of those platforms remains subject to their own terms. We are not affiliated
+	with chess.com or Lichess.
 </p>
 
 <h2>5. The coach is guidance, not gospel</h2>
@@ -60,17 +60,16 @@
 
 <h2>7. Liability</h2>
 <p>
-	To the extent permitted by law, {company.name} is not liable for indirect or consequential damages
-	arising from your use of the service. Nothing in these terms limits liability that cannot be
-	limited under German law, including for injury to life, body or health, or for intent and gross
-	negligence.
+	To the extent permitted by law, {company.name} is not liable for indirect or consequential damages arising
+	from your use of the service. Nothing in these terms limits liability that cannot be limited under German
+	law, including for injury to life, body or health, or for intent and gross negligence.
 </p>
 
 <h2>8. Ending your use</h2>
 <p>
-	You can stop using {company.product} and request deletion of your account and data at any time by
-	emailing <a href="mailto:{company.email}">{company.email}</a>. We may suspend or terminate access
-	if you breach these terms.
+	You can stop using {company.product} and request deletion of your account and data at any time by emailing
+	<a href="mailto:{company.email}">{company.email}</a>. We may suspend or terminate access if you
+	breach these terms.
 </p>
 
 <h2>9. Governing law</h2>

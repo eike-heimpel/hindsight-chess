@@ -251,7 +251,7 @@
 										>{v.tier === 'thrown' ? 'Thrown away' : 'Outplayed late'}</span
 									>
 									<span class="font-semibold" style="color: {C.ink};">vs {c.opponent}</span>
-									<span class="whitespace-nowrap text-sm" style="color: {C.muted};"
+									<span class="text-sm whitespace-nowrap" style="color: {C.muted};"
 										>· {short(c.playedAt)} · {c.outcome === 'loss' ? 'lost' : 'drew'}</span
 									>
 								</div>

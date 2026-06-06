@@ -12,7 +12,13 @@
 	import { createCoachThread } from '$lib/client/coachThread.svelte';
 	import { selectTurningPoints } from '$lib/review/coach/moments';
 	import { uciSquares, type GameAnalysis, type MoveAnalysis } from '$lib/review/analysis';
-	import { CLASS_COLOR } from '$lib/review/charts/palette';
+	import {
+		indexByPly,
+		whiteWinAt,
+		bestArrowAt,
+		dotColorAt,
+		currentMoveAt
+	} from '$lib/review/replayView';
 	import type { Side } from '$lib/chess/types';
 	import type { PageData } from './$types';
 
@@ -35,14 +41,18 @@
 	const VARIANT_KEY = 'coach:variant';
 	onMount(() => {
 		const saved = localStorage.getItem(VARIANT_KEY);
-		if (saved === 'A' || saved === 'B') variant = saved;
+		if ((saved === 'A' || saved === 'B') && saved !== variant) {
+			variant = saved;
+			thread = makeThread(); // rebuild so the opener matches the restored style
+		}
 	});
 	function toggleVariant() {
 		variant = variant === 'A' ? 'B' : 'A';
 		localStorage.setItem(VARIANT_KEY, variant);
-		// Switching coaching style is a mode change — drop any open conversation so
-		// the next "Talk about this move" runs the freshly-built thread's opener.
-		if (thread.currentPly !== null) thread.finish();
+		// Switching coaching style is a mode change — rebuild the thread so the next
+		// "Talk about this move" runs the new style's opener. Reassigning closes any
+		// open conversation (currentPly resets to null), which is the intent.
+		thread = makeThread();
 	}
 
 	// The coached side — derived from the board orientation the loader resolved
@@ -61,10 +71,12 @@
 
 	// Variant B routes the coach's show-line playback through a disposable explore
 	// branch (takeover-able); variant A plays frames inside the thread. The thread
-	// captures `variant` for its opener, so it's rebuilt when the style toggles —
-	// `toggleVariant` finishes any open conversation first, so nothing is lost.
+	// captures `variant` for its opener, so switching style rebuilds it — done in
+	// the event handler that changes the mode (toggleVariant / the onMount read),
+	// never via an $effect/$derived that recreates a stateful rune object.
 	const explore = createExploreLine();
-	const thread = $derived(createCoachThread({ game, analysis, variant, explore }));
+	const makeThread = () => createCoachThread({ game, analysis, variant, explore });
+	let thread = $state(makeThread());
 
 	const active = $derived(thread.currentPly !== null);
 
@@ -75,32 +87,14 @@
 		return uciSquares(moves[ply - 1].uci);
 	});
 
-	const analysisByPly = $derived.by(() => {
-		const m: Record<number, MoveAnalysis> = {};
-		if (analysis) for (const x of analysis.moves) m[x.ply] = x;
-		return m;
-	});
-	const whiteWin = $derived.by(() => {
-		if (!analysis) return null;
-		if (ply === 0) return analysis.moves[0]?.winBefore ?? 50;
-		const m = analysisByPly[ply];
-		if (!m) return null;
-		return m.color === 'w' ? m.winAfter : 100 - m.winAfter;
-	});
-	const bestArrow = $derived.by(() => {
-		const m = analysisByPly[ply];
-		return m?.bestMoveUci ? uciSquares(m.bestMoveUci) : null;
-	});
+	// Per-ply view derivations (shared with the review board — see replayView.ts).
+	const analysisByPly = $derived(indexByPly(analysis));
+	const whiteWin = $derived(whiteWinAt(analysis, analysisByPly, ply));
+	const bestArrow = $derived(bestArrowAt(analysisByPly, ply));
 	function dotColor(p: number): string | null {
-		const m = analysisByPly[p];
-		return m ? CLASS_COLOR[m.classification] : null;
+		return dotColorAt(analysisByPly, p);
 	}
-	const currentMove = $derived.by(() => {
-		if (ply < 1) return null;
-		const m = analysisByPly[ply];
-		if (!m) return null;
-		return { ...m, san: moves[ply - 1]?.san ?? '' };
-	});
+	const currentMove = $derived(currentMoveAt(analysisByPly, moves, ply));
 
 	function goTo(n: number) {
 		if (explore.active) explore.exit();

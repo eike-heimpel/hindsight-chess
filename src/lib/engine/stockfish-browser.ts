@@ -27,6 +27,11 @@ const EVALUATE_TIMEOUT_MS = 7000;
 /** After we send `stop`, give a healthy worker this long to flush a `bestmove`
  *  before we treat the worker as wedged and terminate it. */
 const STOP_GRACE_MS = 250;
+/** Deadline for the one-time `uci`/`isready` handshake. Generous enough for a
+ *  WASM compile on weak hardware, but bounded so a worker that never loads
+ *  surfaces an `EngineTimeoutError` instead of leaving every later evaluate()
+ *  awaiting a worker that will never be ready. */
+const HANDSHAKE_TIMEOUT_MS = 15000;
 
 export class BrowserStockfishEngine implements Engine {
 	private workerPromise: Promise<Worker> | null = null;
@@ -59,7 +64,14 @@ export class BrowserStockfishEngine implements Engine {
 	}
 
 	private ensureWorker(): Promise<Worker> {
-		if (!this.workerPromise) this.workerPromise = this.initWorker();
+		if (!this.workerPromise) {
+			// On a failed handshake, drop the cached promise so the next call can
+			// retry a fresh worker rather than re-awaiting a permanently-rejected one.
+			this.workerPromise = this.initWorker().catch((e) => {
+				this.workerPromise = null;
+				throw e;
+			});
+		}
 		return this.workerPromise;
 	}
 
@@ -70,20 +82,29 @@ export class BrowserStockfishEngine implements Engine {
 			if (typeof data === 'string') this.currentListener?.(data);
 		};
 		worker.onerror = (e) => {
-			// Surface unexpected errors to the console; individual evaluate()
-			// promises will reject via timeout if the engine becomes wedged.
-			// eslint-disable-next-line no-console
+			// Surface unexpected errors to the console; the handshake/evaluate
+			// promises reject via their own timeouts if the engine never replies.
 			console.error('Stockfish worker error:', e);
 		};
-		await this.sendAndWait(worker, 'uci', (l) => l === 'uciok');
-		await this.sendAndWait(worker, 'isready', (l) => l === 'readyok');
+		try {
+			await this.sendAndWait(worker, 'uci', (l) => l === 'uciok');
+			await this.sendAndWait(worker, 'isready', (l) => l === 'readyok');
+		} catch (e) {
+			worker.terminate();
+			throw e;
+		}
 		return worker;
 	}
 
 	private sendAndWait(worker: Worker, cmd: string, pred: (line: string) => boolean): Promise<void> {
-		return new Promise((resolve) => {
+		return new Promise((resolve, reject) => {
+			const timer = setTimeout(() => {
+				this.currentListener = null;
+				reject(new EngineTimeoutError(`Stockfish handshake "${cmd}" timed out`));
+			}, HANDSHAKE_TIMEOUT_MS);
 			this.currentListener = (line: string) => {
 				if (pred(line)) {
+					clearTimeout(timer);
 					this.currentListener = null;
 					resolve();
 				}

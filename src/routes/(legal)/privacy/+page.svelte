@@ -11,9 +11,7 @@
 <p class="updated">How {company.product} handles your data, under the GDPR.</p>
 
 <h2>Who is responsible</h2>
-<p>
-	The controller responsible for the processing of your personal data on this service is:
-</p>
+<p>The controller responsible for the processing of your personal data on this service is:</p>
 <address class="address">
 	<strong>{company.name}</strong><br />
 	{company.street}, {company.city}, {company.country}<br />
@@ -67,8 +65,8 @@
 		move explanations.
 	</li>
 	<li>
-		<strong>chess.com</strong> and <strong>Lichess</strong> — the sources we fetch your games from,
-		at your request.
+		<strong>chess.com</strong> and <strong>Lichess</strong> — the sources we fetch your games from, at
+		your request.
 	</li>
 </ul>
 

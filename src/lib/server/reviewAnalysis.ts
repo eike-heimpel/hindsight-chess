@@ -24,8 +24,7 @@ export async function getAnalysis(
 	const c = await collection();
 	const doc = await c.findOne({ _id: docId(source, gameId) });
 	if (!doc) return null;
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars -- strip Mongo _id
-	const { _id, ...analysis } = doc;
+	const { _id, ...analysis } = doc; // strip Mongo _id
 	return analysis;
 }
 
@@ -40,8 +39,7 @@ export async function getAnalysesByIds(
 	const docs = await c.find({ _id: { $in: ids } }).toArray();
 	return new Map(
 		docs.map((doc) => {
-			// eslint-disable-next-line @typescript-eslint/no-unused-vars -- strip Mongo _id
-			const { _id, ...analysis } = doc;
+			const { _id, ...analysis } = doc; // strip Mongo _id
 			return [`${analysis.source}:${analysis.gameId}`, analysis] as const;
 		})
 	);

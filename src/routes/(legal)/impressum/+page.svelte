@@ -50,8 +50,8 @@
 
 <h2>Liability for content</h2>
 <p>
-	As a service provider we are responsible for our own content on these pages in accordance with §
-	7 (1) DDG under general law. Pursuant to §§ 8 to 10 DDG, however, we are not obliged to monitor
+	As a service provider we are responsible for our own content on these pages in accordance with § 7
+	(1) DDG under general law. Pursuant to §§ 8 to 10 DDG, however, we are not obliged to monitor
 	transmitted or stored third-party information, or to investigate circumstances that indicate
 	illegal activity. Obligations to remove or block the use of information under general law remain
 	unaffected. Liability in this respect is only possible from the point in time at which we become

@@ -8,8 +8,15 @@
 	import { analyzeGame } from '$lib/client/reviewAnalysis';
 	import { explainMove } from '$lib/client/reviewExplain';
 	import { createExploreLine } from '$lib/client/exploreLine.svelte';
-	import { uciSquares, type GameAnalysis, type MoveAnalysis } from '$lib/review/analysis';
-	import { C, CLASS_COLOR } from '$lib/review/charts/palette';
+	import { type GameAnalysis } from '$lib/review/analysis';
+	import { C } from '$lib/review/charts/palette';
+	import {
+		indexByPly,
+		whiteWinAt,
+		bestArrowAt,
+		dotColorAt,
+		currentMoveAt
+	} from '$lib/review/replayView';
 	import BackLink from '$lib/components/BackLink.svelte';
 	import Disclosure from '$lib/components/Disclosure.svelte';
 	import PromotionPicker from '$lib/components/PromotionPicker.svelte';
@@ -108,41 +115,16 @@
 		return p.rating ? `${p.username} (${p.rating})` : p.username;
 	}
 
-	const analysisByPly = $derived.by(() => {
-		const m: Record<number, MoveAnalysis> = {};
-		if (analysis) for (const x of analysis.moves) m[x.ply] = x;
-		return m;
-	});
-
-	// White-POV win% at the current ply, for the eval bar. The per-move win%s are
-	// mover-POV, so a black move's winAfter is flipped back to white's perspective.
-	const whiteWin = $derived.by(() => {
-		if (!analysis) return null;
-		if (ply === 0) return analysis.moves[0]?.winBefore ?? 50;
-		const m = analysisByPly[ply];
-		if (!m) return null;
-		return m.color === 'w' ? m.winAfter : 100 - m.winAfter;
-	});
-
-	// The better move for the move just played — what should have been played on
-	// this turn, shown alongside the actual move (highlighted via `lastMove`) so
-	// you see both on one screen. Matches the verdict text below.
-	const bestArrow = $derived.by(() => {
-		const m = analysisByPly[ply];
-		if (!m?.bestMoveUci) return null;
-		return uciSquares(m.bestMoveUci);
-	});
-
+	// Per-ply view derivations (shared with the coach board — see replayView.ts).
+	// The better move arrow is shown alongside the actual move (highlighted via
+	// `lastMove`) so you see both on one screen, matching the verdict below.
+	const analysisByPly = $derived(indexByPly(analysis));
+	const whiteWin = $derived(whiteWinAt(analysis, analysisByPly, ply));
+	const bestArrow = $derived(bestArrowAt(analysisByPly, ply));
 	function dotColor(p: number): string | null {
-		const m = analysisByPly[p];
-		return m ? CLASS_COLOR[m.classification] : null;
+		return dotColorAt(analysisByPly, p);
 	}
-	const currentMove = $derived.by(() => {
-		if (ply < 1) return null;
-		const m = analysisByPly[ply];
-		if (!m) return null;
-		return { ...m, san: moves[ply - 1]?.san ?? '' };
-	});
+	const currentMove = $derived(currentMoveAt(analysisByPly, moves, ply));
 	function accuracyFor(color: 'w' | 'b'): number | null {
 		if (!analysis) return null;
 		return color === 'w' ? analysis.accuracy.white : analysis.accuracy.black;

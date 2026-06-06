@@ -15,6 +15,7 @@ import { Chess } from 'chess.js';
 import { chatCompletion } from '$lib/llm/openrouterClient';
 import { getCoachGateModel, getOpenRouterApiKey } from '$lib/server/env';
 import { ok, err, type Result } from '$lib/result';
+import { extractJson } from './extractJson';
 import type { TurningPointFacts } from './types';
 
 export type GateVerdict = { pass: boolean; reason: string };
@@ -76,16 +77,6 @@ export function deterministicGate(
 }
 
 const GATE_RUBRIC = `You are a strict fact-checker for a chess coach's message. Check ONLY whether the coach message states something that CONTRADICTS or is NOT SUPPORTED by the FACTS — specifically: piece names/colors, square names, which move was played vs best, who is winning/losing, whether a capture/check/mate happened. Output a single JSON object {"pass": boolean, "reason": string}. Default pass:true. Do NOT flag tone, style, teaching choices, omissions, or anything that is not a factual contradiction.`;
-
-/** Pull the first JSON object out of a model reply (tolerates ``` fences / prose). */
-function extractJson(raw: string): unknown {
-	const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-	const body = fenced ? fenced[1] : raw;
-	const start = body.indexOf('{');
-	const end = body.lastIndexOf('}');
-	if (start === -1 || end === -1 || end < start) throw new Error('no JSON object in reply');
-	return JSON.parse(body.slice(start, end + 1));
-}
 
 function coerceVerdict(value: unknown): GateVerdict {
 	if (!value || typeof value !== 'object') throw new Error('verdict is not an object');

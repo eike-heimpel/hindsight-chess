@@ -7,20 +7,11 @@ import { chatCompletion } from '$lib/llm/openrouterClient';
 import { getCoachSpikeModel, getOpenRouterApiKey } from '$lib/server/env';
 import { ok, err, type Result } from '$lib/result';
 import { buildDiscussPrompt } from './prompt';
+import { extractJson } from './extractJson';
 import type { DiscussRequest, DiscussResponse, Learning } from './types';
 
 const LEVELS = new Set(['tactical', 'principle', 'process']);
 const SHOWS = new Set(['best', 'punish', 'none']);
-
-/** Pull the first JSON object out of a model reply (tolerates ``` fences / prose). */
-function extractJson(raw: string): unknown {
-	const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-	const body = fenced ? fenced[1] : raw;
-	const start = body.indexOf('{');
-	const end = body.lastIndexOf('}');
-	if (start === -1 || end === -1 || end < start) throw new Error('no JSON object in reply');
-	return JSON.parse(body.slice(start, end + 1));
-}
 
 function coerce(value: unknown): DiscussResponse {
 	if (!value || typeof value !== 'object') throw new Error('reply is not an object');

@@ -1,5 +1,5 @@
 import { dev } from '$app/environment';
-import { error, redirect } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import { getAuth } from '$lib/server/betterAuth';
 import { linkAccount } from '$lib/server/reviewLink';
 import type { User } from '$lib/server/auth';

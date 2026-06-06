@@ -42,7 +42,6 @@
 </svelte:head>
 
 <main class="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-6 pt-8 pb-12">
-
 	<header in:fade={{ duration: 500 }} class="flex items-center justify-between">
 		<span class="font-display text-base font-medium tracking-tight text-text-2">
 			Hindsight<span class="text-brand">.</span>
@@ -56,7 +55,7 @@
 	     username → watch your last game" teaser on the right. On narrow screens
 	     it collapses to a single stacked column (copy, then the teaser). -->
 	<div
-		class="grid flex-1 gap-12 pt-12 lg:grid-cols-2 lg:items-start lg:gap-16 lg:pt-0 lg:[align-content:center]"
+		class="grid flex-1 gap-12 pt-12 lg:grid-cols-2 lg:[align-content:center] lg:items-start lg:gap-16 lg:pt-0"
 	>
 		<div>
 			<h1
@@ -85,8 +84,8 @@
 						Save this — and every game <span aria-hidden="true">→</span>
 					</a>
 					<p class="mt-3 text-sm text-text-muted">
-						We'll email a sign-in link — no password. Every game you play lands here, ready when
-						you come back.
+						We'll email a sign-in link — no password. Every game you play lands here, ready when you
+						come back.
 					</p>
 				</div>
 			{/if}

@@ -74,6 +74,12 @@ export function gameAccuracy(args: { winPercents: number[]; colors: Side[]; delt
 } {
 	const { winPercents, colors, deltas } = args;
 	const weights = moveWeights(winPercents, colors.length);
+	// One weight per move — a mismatch would silently dot-product to NaN below.
+	if (weights.length !== colors.length) {
+		throw new Error(
+			`gameAccuracy: ${weights.length} weights for ${colors.length} moves (winPercents length ${winPercents.length})`
+		);
+	}
 
 	const bySide: Record<Side, { accs: number[]; weights: number[] }> = {
 		w: { accs: [], weights: [] },

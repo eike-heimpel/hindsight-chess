@@ -42,10 +42,12 @@ it first for anything non-trivial. Code wins on any conflict with the doc.
 
 Resolve before exposing this to strangers:
 
-1. **Trust model.** Analysis runs in the browser and the server _trusts and
-   stores whatever is POSTed_ (`/api/review/analyze`, `/api/review/explain`).
-   Fine for one user; a hole for many. Re-derive or sign analysis server-side.
-   Note: the game-keyed caches (`reviewGames`, `reviewAnalysis`,
+1. **Trust model.** Analysis runs in the browser, so routes that write the
+   global game-keyed caches must re-derive from server-stored games rather than
+   trust the POST body — the browser sends only engine numbers. `analyze` and
+   `coach/discuss` already follow this pattern; the remaining gap is `explain`,
+   which still trusts what's POSTed. The work is making _all_ such routes
+   re-derive. Note: the game-keyed caches (`reviewGames`, `reviewAnalysis`,
    `reviewExplanations`) are deliberately global so engine/LLM cost dedupes
    across users — the fix is trusting _writes_, not per-user copies.
 2. **Auth — wired.** Better Auth with magic-link email (Postmark) is live;
@@ -59,7 +61,7 @@ Resolve before exposing this to strangers:
 
 ## Open cleanup items
 
-- **Env / DB.** Set `MONGO_*`, the OpenRouter key, and the Better Auth +
+- **Env / DB.** Set `MONGODB_URI` / `MONGODB_DB_NAME`, the OpenRouter key, and the Better Auth +
   Postmark vars (see `.env.example`). No seeding — Better Auth creates users on
   first sign-in.
 - `docs/review.md` still reads as a feature doc of a larger app — folds into a
