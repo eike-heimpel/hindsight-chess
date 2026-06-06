@@ -8,6 +8,14 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # Real Mongo for the persistence integration tests (operator semantics —
+    # $unset facet isolation, cursor set/clear — can't be faked). Reached at
+    # 127.0.0.1:27017, which is the test's default MONGODB_TEST_URI.
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
     steps:
       - uses: actions/checkout@v4
 

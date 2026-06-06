@@ -19,6 +19,14 @@ beginners (~500–900). Why & feel live in
 The full design + module reference is [`docs/review.md`](docs/review.md) — read
 it first for anything non-trivial. Code wins on any conflict with the doc.
 
+**The _why_ behind review + coach is [`docs/learning-model.md`](docs/learning-model.md)
+— read it before changing how explanations, the coach, or persistence behave.** In
+short: improvement = thinking + pattern recognition, not move recall; the
+explanation is the _reveal_ step and the coach is the _predict→reconcile→abstract_
+loop, two steps of one conversation primitive. Stockfish is the oracle, chess.js
+(`explainGate.ts` / coach `gate.ts`) is the verifier that guarantees we never state
+a board claim it can't prove, and the LLM is the tutor — it never grades or invents.
+
 ## Layout
 
 - **Shared primitives:** `src/lib/chess/` (chess.js wrapper), `src/lib/engine/` +
@@ -36,7 +44,13 @@ it first for anything non-trivial. Code wins on any conflict with the doc.
   `userId`; call sites never touch the auth storage shape.
 - **The review feature:** everything under `src/lib/review/`, the review files
   in `src/lib/{server,client}/review*.ts`, and `src/routes/review` +
-  `src/routes/api/review`.
+  `src/routes/api/review`. `/review/[source]/[gameId]` is the **single learning
+  surface**: board + engine verdicts, the move's "what happened" explanation, and
+  the per-move coach conversation (`coachThread.svelte.ts` + `CoachPanel`, voice-
+  first variant 'B') all live on it — there is no separate coach route. Opening a
+  conversation passes through the `coachEntitlement.ts` seam (allow-all today; the
+  one place a premium gate lands). Variant 'A' (`CoachConversation.svelte`) is kept
+  dormant for a future style toggle. `coach/discuss` is an API path, not a route.
 
 ## Going public — open decisions
 
@@ -106,11 +120,12 @@ npm run calibrate:review -- <chesscom-user> [sampleSize]
 - Events are callback props (`onClick`, `onChange`) — no `createEventDispatcher`.
   Slots are `{#snippet}`/`{@render}`.
 - A route component over ~250 lines doing async orchestration extracts that into
-  a `.svelte.ts` rune module — `recapQueue.svelte.ts` (the home reveal queue,
-  with an injected `RecapEngine`) and `exploreLine.svelte.ts` (the review board's
-  "play it out from here" branch, with an injected `evaluate`) are the pattern to
-  follow. The `review/[source]/[gameId]/+page.svelte` route still owns its
-  analyze/explain orchestration inline — the remaining extraction candidate.
+  a `.svelte.ts` rune module — `recapQueue.svelte.ts` (the home reveal queue, with
+  an injected `RecapEngine`), `exploreLine.svelte.ts` (the review board's "play it
+  out from here" branch, with an injected `evaluate`), `coachThread.svelte.ts` (the
+  per-move coach conversation, with injected `discuss`/`evaluate`), and
+  `reviewSession.svelte.ts` (the review page's analyze/explain orchestration) are
+  the pattern to follow.
 
 ### Trust + mobile
 

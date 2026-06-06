@@ -49,9 +49,6 @@
 <main class="mx-auto max-w-3xl px-4 py-8">
 	<PageHeader title="Your games" back={{ href: '/home', label: 'Home' }}>
 		{#snippet actions()}
-			<a href="/review/coach" class="-my-1.5 py-1.5 font-medium text-text-2 hover:text-text"
-				>Coach</a
-			>
 			<a href="/review/stats" class="-my-1.5 py-1.5 font-medium text-text-2 hover:text-text"
 				>Stats</a
 			>

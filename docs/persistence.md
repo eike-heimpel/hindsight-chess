@@ -208,9 +208,14 @@ clearMove(userId, ref) / clearAllMoveState(userId)
   (`/api/review/snapshot`) on the blunder card and review board. _Mark + note +
   stored LLM_, delivered.
 - **Phase 3 — moat seed:** the Shortlist view + nav entry.
-- **Phase 4 — coach memory:** persist + resume coach threads; learnings rollup.
-- **Phase 5 — deferred:** an SRS `dueAt` facet + weakness analytics, built only
-  once usage shows people return to saved positions.
+- **Phase 4 — coach memory _[done: persist + resume]_:** coach threads autosave
+  per turn via the `thread` facet (`/api/review/moves` `facet:'thread'`) and resume
+  on return; a per-move entry links review → coach. The single monetization seam
+  (`assertCanDiscuss`, allow-all) gates opening a conversation. The learnings
+  _rollup_ across games is the Phase 5 aggregate. See `docs/learning-model.md`.
+- **Phase 5 — deferred:** an SRS `dueAt` facet + cross-game weakness analytics
+  (the `thread.learnings` rollup — the "Aggregate" stage), built only once usage
+  shows people return to saved positions.
 
 ## Reset / trace / revisit
 

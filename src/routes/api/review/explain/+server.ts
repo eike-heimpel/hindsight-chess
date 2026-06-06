@@ -21,11 +21,16 @@ import { makeReviewExplainer } from '$lib/server/review-explainer-factory';
 export const POST: RequestHandler = async ({ locals, request }) => {
 	await requireUser(locals);
 
-	const parsed = parseExplainRequest(await request.json().catch(() => null));
+	const raw = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+	const parsed = parseExplainRequest(raw);
 	if ('errors' in parsed) throw error(400, `Invalid request: ${parsed.errors.join('; ')}`);
 	const req = parsed.value;
 
-	const cached = await getExplanation(req.source, req.gameId, req.ply);
+	// `regenerate` skips the cache read so the grounded+gated pipeline reruns and
+	// overwrites a stale/wrong cached explanation. The trust checks below are
+	// unchanged — only the cache lookup is bypassed.
+	const regenerate = raw?.regenerate === true;
+	const cached = regenerate ? null : await getExplanation(req.source, req.gameId, req.ply);
 	if (cached) return json({ text: cached, cached: true });
 
 	const game = await getReviewGame(req.source, req.gameId);

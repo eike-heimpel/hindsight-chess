@@ -24,9 +24,9 @@ export function getOpenRouterHeadlineModel(): string {
 	return env.OPENROUTER_HEADLINE_MODEL || 'google/gemini-2.5-flash-lite';
 }
 
-/** Model for the guided-coach feature (src/routes/review/coach). The discussion
- *  needs more reasoning headroom than a one-liner — Gemini Flash 3.5. Override
- *  with `COACH_SPIKE_MODEL`. */
+/** Model for the coach discussion (POST /api/review/coach/discuss, surfaced on the
+ *  review page). The discussion needs more reasoning headroom than a one-liner —
+ *  Gemini Flash 3.5. Override with `COACH_SPIKE_MODEL`. */
 export function getCoachSpikeModel(): string {
 	return env.COACH_SPIKE_MODEL || 'google/gemini-3.5-flash';
 }

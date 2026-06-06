@@ -31,9 +31,37 @@ export async function postCoachTurn(req: CoachTurnRequest): Promise<CoachTurnRes
 	return (await res.json()) as CoachTurnResponse;
 }
 
+/** Default autosave: fire-and-forget POST of the thread facet, mirroring the
+ *  note/mark transport on the review page. Best-effort — network errors are
+ *  swallowed quietly (not a Result boundary), so a failed save never breaks the
+ *  conversation. The factory binds source/gameId from the game. */
+function makePersist(source: ReviewGame['source'], gameId: string): PersistFn {
+	return (ply, thread) => {
+		void fetch('/api/review/moves', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				ref: { source, gameId, ply },
+				facet: 'thread',
+				value: thread
+			})
+		}).catch(() => {});
+	};
+}
+
 type DiscussFn = (req: CoachTurnRequest) => Promise<CoachTurnResponse>;
 type EvaluateFn = typeof safeEvaluate;
 type ExploreLine = ReturnType<typeof createExploreLine>;
+
+/** The persisted shape of one move's coach thread (the `thread` facet). */
+export type ThreadState = {
+	messages: DiscussTurn[];
+	learnings: Learning[];
+	status: 'open' | 'wrapped';
+};
+
+type PersistFn = (ply: number, thread: ThreadState) => void;
+type LoadThreadFn = (ply: number) => ThreadState | undefined;
 
 /** The deep eval we memoise per ply: multiPv:3 from `fenBefore` + the reply line. */
 type DeepEval = { bestLines: EngineLine[]; replyLine: EngineLine | null };
@@ -115,10 +143,14 @@ export function createCoachThread(opts: {
 	discuss?: DiscussFn;
 	evaluate?: EvaluateFn;
 	explore?: ExploreLine;
+	persist?: PersistFn;
+	loadThread?: LoadThreadFn;
 }) {
 	const { game, analysis, variant, explore } = opts;
 	const discuss = opts.discuss ?? postCoachTurn;
 	const evaluate = opts.evaluate ?? safeEvaluate;
+	const persist = opts.persist ?? makePersist(game.source, game.gameId);
+	const loadThread = opts.loadThread;
 
 	let currentPly = $state<number | null>(null);
 	// Per-ply deep eval; populated on the first `open(ply)` and reused after.
@@ -252,11 +284,21 @@ export function createCoachThread(opts: {
 				];
 			}
 			if (resp.show !== 'none') playShow(resp.show);
+			persist(ply, {
+				messages,
+				learnings: learningsFor(ply),
+				status: wrapUpReady ? 'wrapped' : 'open'
+			});
 		} catch (e) {
 			convError = e instanceof Error ? e.message : String(e);
 		} finally {
 			thinking = false;
 		}
+	}
+
+	/** This ply's committed learnings (the tray entry), or [] if none yet. */
+	function learningsFor(ply: number): Learning[] {
+		return learnings.find((l) => l.ply === ply)?.learnings ?? [];
 	}
 
 	function playShow(show: 'best' | 'punish') {
@@ -344,6 +386,25 @@ export function createCoachThread(opts: {
 				whiteWin = stm === 'w' ? winPercent(after.cp) : 100 - winPercent(after.cp);
 			}
 
+			// Resume a saved conversation seamlessly: seed it and DON'T re-fire the
+			// opener. Only an empty (no-messages) spot runs variant A's opening turn.
+			const saved = loadThread?.(ply);
+			if (saved && saved.messages.length) {
+				messages = saved.messages;
+				wrapUpReady = saved.status === 'wrapped';
+				if (saved.learnings.length) {
+					learnings = [
+						...learnings.filter((l) => l.ply !== ply),
+						{
+							ply,
+							moveNumber: mv.color === 'w' ? Math.ceil(ply / 2) : ply / 2,
+							learnings: saved.learnings
+						}
+					];
+				}
+				return;
+			}
+
 			if (variant === 'A') await runTurn('open');
 		},
 
@@ -375,6 +436,12 @@ export function createCoachThread(opts: {
 		/** Commit the current move's learnings (already in the tray) and clear the
 		 *  thread, returning to picking. The tray persists across the session. */
 		finish() {
+			const ply = currentPly;
+			// Mark the thread wrapped on the way out so a return resumes it as done,
+			// not mid-conversation. Skip empty threads (opened then abandoned).
+			if (ply !== null && messages.length) {
+				persist(ply, { messages, learnings: learningsFor(ply), status: 'wrapped' });
+			}
 			playToken++;
 			currentPly = null;
 			messages = [];

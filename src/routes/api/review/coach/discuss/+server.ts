@@ -11,6 +11,7 @@ import { buildTurningPointFacts, type TurningPointInput } from '$lib/review/coac
 import { factsBlock } from '$lib/review/coach/prompt';
 import { discuss } from '$lib/review/coach/coach';
 import { gradeReply } from '$lib/review/coach/gate';
+import { assertCanDiscuss } from '$lib/server/coachEntitlement';
 import type {
 	CoachIntent,
 	CoachTurnRequest,
@@ -55,6 +56,8 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 
 	const side = coachedSide(game, user.activeAccount?.username);
 	if (!side) throw error(400, 'active account is not a player in this game');
+
+	await assertCanDiscuss(user.userId, { source: req.source, gameId: req.gameId, ply: req.ply });
 
 	const analysis = await getAnalysis(req.source, req.gameId);
 	const { kind, setup } = deriveMoment(game, analysis, req.ply);

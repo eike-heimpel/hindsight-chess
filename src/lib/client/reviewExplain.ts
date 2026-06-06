@@ -75,11 +75,14 @@ export async function buildExplainRequest(
 export async function explainMove(
 	game: ReviewGame,
 	ply: number,
-	onProgress?: (done: number, total: number) => void
+	onProgress?: (done: number, total: number) => void,
+	opts?: { regenerate?: boolean }
 ): Promise<Result<{ text: string }>> {
 	const built = await buildExplainRequest(game, ply, onProgress);
 	if (!built.ok) return err(built.error.kind, built.error.message);
-	const body = built.value;
+	// `regenerate` tells the route to skip the cache read and overwrite — used to
+	// refresh a stale/wrong cached explanation through the grounded+gated pipeline.
+	const body = { ...built.value, regenerate: opts?.regenerate === true };
 
 	let res: Response;
 	try {

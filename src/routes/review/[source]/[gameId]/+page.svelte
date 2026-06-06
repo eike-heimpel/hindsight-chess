@@ -4,12 +4,13 @@
 	 * chess.com link; resolve() doesn't apply cleanly to either. */
 	import { untrack } from 'svelte';
 	import Board from '$lib/components/Board.svelte';
-	import type { Square } from '$lib/chess/types';
-	import { analyzeGame } from '$lib/client/reviewAnalysis';
-	import { explainMove } from '$lib/client/reviewExplain';
-	import type { MoveState } from '$lib/server/userMoveState';
+	import type { Square, Side } from '$lib/chess/types';
+	import { createReviewSession } from '$lib/client/reviewSession.svelte';
 	import { createExploreLine } from '$lib/client/exploreLine.svelte';
-	import { type GameAnalysis } from '$lib/review/analysis';
+	import { createCoachThread } from '$lib/client/coachThread.svelte';
+	import { selectTurningPoints } from '$lib/review/coach/moments';
+	import type { MoveState } from '$lib/server/userMoveState';
+	import { type MoveAnalysis } from '$lib/review/analysis';
 	import { C } from '$lib/review/charts/palette';
 	import {
 		indexByPly,
@@ -26,6 +27,7 @@
 	import MoveVerdict from '$lib/review/MoveVerdict.svelte';
 	import MoveList from '$lib/review/MoveList.svelte';
 	import ExplorePanel from '$lib/review/ExplorePanel.svelte';
+	import CoachPanel from '$lib/review/coach/CoachPanel.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -37,28 +39,26 @@
 
 	// These seed once from `data` (untrack = "capture the initial value on
 	// purpose"): the page always mounts fresh per game — every in-app link to it
-	// comes from another route (the games list, blunders, winnable), never
-	// game→game on this route — so there's no stale state to reset. State changes
-	// live in the event handlers below, never in an $effect that copies `data`
-	// back into local state (a one-frame-stale antipattern).
+	// comes from another route (home, blunders, winnable), never game→game on this
+	// route — so there's no stale state to reset. State changes live in the event
+	// handlers below, never in an $effect that copies `data` back into local state.
 	// ply 0 = start position; ply k = the position after move k.
 	let ply = $state(untrack(() => data.initialPly));
 	let orientation = $state<'white' | 'black'>(untrack(() => data.orientation));
 
-	// Analysis: seeded from the cached server load, recomputed on demand in-browser.
-	let analysis = $state<GameAnalysis | null>(untrack(() => data.analysis));
-	let analyzing = $state(false);
-	let progress = $state<{ done: number; total: number }>({ done: 0, total: 0 });
-	let analyzeError = $state<string | null>(null);
-	let cacheNote = $state<string | null>(null);
+	// Analyze + explain orchestration (analysis, explanations, in-flight/error
+	// flags) lives in a rune module — see reviewSession.svelte.ts. Seeded once from
+	// the cached server load. `onAnalyzed` rebuilds the coach thread because the
+	// thread captures `analysis` by value (R1) — an event, never a state→state effect.
+	const session = createReviewSession({
+		game: untrack(() => data.game),
+		analysis: untrack(() => data.analysis),
+		explanations: untrack(() => data.explanations),
+		onAnalyzed: () => (thread = makeThread())
+	});
 
-	// Per-ply LLM explanations, seeded from the cache and filled on demand.
-	let explanations = $state<Record<number, string>>(untrack(() => data.explanations));
-	let explaining = $state(false);
-	let explainError = $state<string | null>(null);
-
-	// Per-user move-state overlay (mark/note/…), seeded once like `explanations`.
-	// Optimistic writes patch this map so the controls reflect without a reload.
+	// Per-user move-state overlay (mark/note/…), seeded once. Optimistic writes
+	// patch this map so the controls reflect without a reload.
 	let moveStates = $state<Record<number, MoveState>>(untrack(() => data.moveStates));
 	const currentState = $derived<MoveState | undefined>(ply >= 1 ? moveStates[ply] : undefined);
 
@@ -123,11 +123,47 @@
 		return { from: uci.slice(0, 2) as Square, to: uci.slice(2, 4) as Square };
 	});
 
+	// --- the coach thread (the review surface IS the coach) -------------------
+	// Voice-first (variant 'B'): the player states their read before the reveal,
+	// and the coach's show-line playback routes through the same `explore` branch
+	// the board uses. The thread captures `analysis` by value, so `onAnalyzed`
+	// (above) rebuilds it when a fresh analysis lands — an event, not an $effect.
+	const explore = createExploreLine();
+	// Resume a saved conversation on open: hand the thread the persisted facet for
+	// a ply (mapped to its {messages,learnings,status} shape). `data.moveStates`
+	// seeds once per mount; the default persist transport handles the write-back.
+	const savedThreads = untrack(() => data.moveStates ?? {});
+	const loadThread = (p: number) => {
+		const t = savedThreads[p]?.thread;
+		return t ? { messages: t.messages, learnings: t.learnings, status: t.status } : undefined;
+	};
+	const makeThread = () =>
+		createCoachThread({ game, analysis: session.analysis, variant: 'B', explore, loadThread });
+	let thread = $state(makeThread());
+	const active = $derived(thread.currentPly !== null);
+
+	// The coached side — derived from the board orientation the loader resolved for
+	// `me` (white-on-bottom ⇒ we're White). Turning points are auto-flagged over the
+	// cached analysis and surface as markers on the move list + eval bar.
+	const side = $derived<Side>(orientation === 'white' ? 'w' : 'b');
+	const moments = $derived(
+		session.analysis ? selectTurningPoints(session.analysis, game, side) : []
+	);
+	const momentPlies = $derived(new Set(moments.map((m) => m.ply)));
+	const momentBarPips = $derived(
+		moments
+			.map((m) => session.analysis?.moves[m.ply - 1])
+			.filter((x): x is MoveAnalysis => !!x)
+			.map((x) => ({ at: x.color === 'w' ? x.winAfter : 100 - x.winAfter }))
+	);
+
 	function goTo(n: number) {
 		if (explore.active) explore.exit(); // leaving the branch returns to the game
+		if (active) thread.finish(); // close any open conversation before navigating
 		ply = Math.max(0, Math.min(plyCount, n));
 	}
 	function onKey(e: KeyboardEvent) {
+		if (active) return; // the coach panel owns input while discussing
 		if (explore.active) {
 			// In the branch, arrows take back / play the engine's move; no game nav.
 			if (e.key === 'ArrowLeft') {
@@ -147,6 +183,13 @@
 		} else if (e.key === 'End') {
 			goTo(plyCount);
 		}
+	}
+
+	// "Talk it through" — hand this move to the coach. Exit any live branch first so
+	// the coach's own show-line playback (which uses `explore`) starts clean (R3).
+	function talkItThrough() {
+		if (explore.active) explore.exit();
+		thread.open(ply);
 	}
 
 	function clockAt(color: 'w' | 'b'): string {
@@ -178,22 +221,17 @@
 	// Per-ply view derivations (shared with the coach board — see replayView.ts).
 	// The better move arrow is shown alongside the actual move (highlighted via
 	// `lastMove`) so you see both on one screen, matching the verdict below.
-	const analysisByPly = $derived(indexByPly(analysis));
-	const whiteWin = $derived(whiteWinAt(analysis, analysisByPly, ply));
+	const analysisByPly = $derived(indexByPly(session.analysis));
+	const whiteWin = $derived(whiteWinAt(session.analysis, analysisByPly, ply));
 	const bestArrow = $derived(bestArrowAt(analysisByPly, ply));
 	function dotColor(p: number): string | null {
 		return dotColorAt(analysisByPly, p);
 	}
 	const currentMove = $derived(currentMoveAt(analysisByPly, moves, ply));
 	function accuracyFor(color: 'w' | 'b'): number | null {
-		if (!analysis) return null;
-		return color === 'w' ? analysis.accuracy.white : analysis.accuracy.black;
+		if (!session.analysis) return null;
+		return color === 'w' ? session.analysis.accuracy.white : session.analysis.accuracy.black;
 	}
-
-	// "Play it out from here" — a disposable branch with its own live engine
-	// readout. While active it drives the board; the game's replay is untouched
-	// and one tap on "Return to game" (or any game-nav action) restores it.
-	const explore = createExploreLine();
 
 	function moveLabel(p: number): string {
 		if (p === 0) return 'the starting position';
@@ -202,48 +240,12 @@
 	}
 
 	// The board, eval bar and best-move arrow read from the branch while it's
-	// active, otherwise from the replay.
+	// active, otherwise from the replay. (Variant B never sources the board from the
+	// thread — the coach's playback enters `explore`, so this covers it.)
 	const boardFen = $derived(explore.active ? explore.currentFen : fen);
 	const boardLastMove = $derived(explore.active ? explore.lastMove : lastMove);
 	const boardArrow = $derived(explore.active ? explore.bestArrow : bestArrow);
 	const boardWhiteWin = $derived(explore.active ? explore.whiteWin : whiteWin);
-
-	async function runAnalysis() {
-		analyzing = true;
-		analyzeError = null;
-		cacheNote = null;
-		progress = { done: 0, total: 0 };
-		const result = await analyzeGame(game, (done, total) => (progress = { done, total }));
-		analyzing = false;
-		if (!result.ok) {
-			analyzeError = result.error.message;
-			return;
-		}
-		analysis = result.value.analysis;
-		const res = await fetch('/api/review/analyze', {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({
-				source: result.value.analysis.source,
-				gameId: result.value.analysis.gameId,
-				depth: result.value.analysis.depth,
-				evals: result.value.evals
-			})
-		});
-		if (!res.ok) cacheNote = 'Analysis computed but could not be cached.';
-	}
-
-	async function runExplain() {
-		explaining = true;
-		explainError = null;
-		const result = await explainMove(game, ply);
-		explaining = false;
-		if (!result.ok) {
-			explainError = result.error.message;
-			return;
-		}
-		explanations = { ...explanations, [ply]: result.value.text };
-	}
 </script>
 
 <svelte:head><title>{game.white.username} vs {game.black.username}</title></svelte:head>
@@ -263,8 +265,8 @@
 						>{resultLabel}</span
 					>
 				</h1>
-				{#if analysis}
-					<span class="chip-meta">Analyzed · depth {analysis.depth}</span>
+				{#if session.analysis}
+					<span class="chip-meta">Analyzed · depth {session.analysis.depth}</span>
 				{/if}
 			</div>
 			<p class="mt-0.5 text-sm" style="color: {C.muted};">
@@ -281,14 +283,18 @@
 			</p>
 		</header>
 
-		<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
+		<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
 			<!-- Board column -->
 			<div>
 				<div class="mx-auto w-full" style="max-width: min(66svh, 40rem, 100%);">
 					{@render playerRow(topPlayer, topColor, clockAt(topColor))}
 
 					<div class="mt-1.5 flex gap-2">
-						<EvalBar whiteWin={boardWhiteWin} pulse={explore.evaluating} />
+						<EvalBar
+							whiteWin={boardWhiteWin}
+							pulse={explore.evaluating || thread.evaluating}
+							moments={!active ? momentBarPips : undefined}
+						/>
 						<div class="relative min-w-0 flex-1">
 							<Board
 								fen={boardFen}
@@ -323,9 +329,10 @@
 						canUndo={explore.nodes.length > 0}
 						onUndo={() => explore.undo()}
 						onExitExplore={() => explore.exit()}
+						navHidden={active}
 					/>
 
-					{#if !explore.active}
+					{#if !explore.active && !active}
 						<div class="mt-2 flex justify-center">
 							<button class="branch-enter" onclick={() => explore.enter(fen, moveLabel(ply))}>
 								Play it out from here ↪
@@ -334,14 +341,15 @@
 					{/if}
 				</div>
 
-				<!-- Move verdict + explanation — the branch panel takes over while exploring -->
+				<!-- Move verdict — the branch panel takes over while exploring; hidden while
+				     the coach is open (the conversation is the focus then). -->
 				{#if explore.active}
 					<ExplorePanel
 						baseLabel={explore.baseLabel}
 						nodes={explore.nodes}
 						evaluating={explore.evaluating}
 					/>
-				{:else if currentMove}
+				{:else if currentMove && !active}
 					<div class="mt-4">
 						<MoveVerdict
 							classification={currentMove.classification}
@@ -352,26 +360,47 @@
 					</div>
 				{/if}
 
-				{#if ply >= 1 && !explore.active}
+				<!-- The move's reveal + actions. Hidden while the coach panel is open: the
+				     explanation moves to a peek above the panel and the note goes read-only. -->
+				{#if ply >= 1 && !explore.active && !active}
 					<div class="card mt-3">
-						{#if explanations[ply]}
+						{#if session.explanations[ply]}
 							<div class="eyebrow mb-1.5">What happened</div>
 							<p class="leading-relaxed whitespace-pre-line" style="color: {C.body};">
-								{explanations[ply]}
+								{session.explanations[ply]}
 							</p>
-						{:else}
-							<button class="btn w-full" onclick={runExplain} disabled={explaining}>
-								{explaining ? 'Thinking…' : 'Explain this move'}
+							<!-- Re-run through the grounded+gated pipeline, overwriting a stale or
+							     wrong cached explanation. -->
+							<button
+								class="regen mt-2 text-xs"
+								onclick={() => session.runExplain(ply, true)}
+								disabled={session.explaining}
+							>
+								{session.explaining ? 'Regenerating…' : '↻ Regenerate'}
 							</button>
-							{#if explaining}
+							{#if session.explainError}
+								<p class="mt-2 text-xs" style="color: {C.bad};">{session.explainError}</p>
+							{/if}
+						{:else}
+							<button
+								class="btn w-full"
+								onclick={() => session.runExplain(ply)}
+								disabled={session.explaining}
+							>
+								{session.explaining ? 'Thinking…' : 'Explain this move'}
+							</button>
+							{#if session.explaining}
 								<p class="mt-2 text-xs" style="color: {C.muted};">
 									Running the engine on this position…
 								</p>
 							{/if}
-							{#if explainError}
-								<p class="mt-2 text-xs" style="color: {C.bad};">{explainError}</p>
+							{#if session.explainError}
+								<p class="mt-2 text-xs" style="color: {C.bad};">{session.explainError}</p>
 							{/if}
 						{/if}
+
+						<!-- The core move: talk it through with the coach, on this ply, same side. -->
+						<button class="talk mt-3" onclick={talkItThrough}>Talk it through ↪</button>
 
 						<!-- Per-move star + note, against the move currently in view. The note
 						     textarea is re-seeded per ply via {#key}; it saves from blur. -->
@@ -400,54 +429,81 @@
 				{/if}
 			</div>
 
-			<!-- Side panel: analyze CTA + move list -->
+			<!-- Side panel: the coach conversation, or the analyze CTA + move list when idle. -->
 			<aside
 				class="flex flex-col gap-3 lg:sticky lg:top-4"
 				style="max-height: calc(100svh - 2rem);"
 			>
-				{#if !analysis}
-					<div class="card">
-						<button class="btn w-full" onclick={runAnalysis} disabled={analyzing}>
-							{analyzing ? 'Analyzing…' : 'Analyze game'}
-						</button>
-						{#if analyzing}
-							<div class="mt-3">
-								<div
-									class="h-1.5 w-full overflow-hidden rounded-full"
-									style="background: {C.track};"
-								>
+				{#if active}
+					<!-- Coach open: the reveal collapses to a peek above the conversation so the
+					     player can check it without losing their place; the note goes read-only. -->
+					{#if session.explanations[ply]}
+						<Disclosure
+							storageKey="review:reveal-peek"
+							showLabel="What happened"
+							hideLabel="Hide what happened"
+						>
+							<p class="text-sm leading-relaxed whitespace-pre-line" style="color: {C.body};">
+								{session.explanations[ply]}
+							</p>
+						</Disclosure>
+					{/if}
+					{#if currentState?.note?.text}
+						<div class="card py-2.5">
+							<div class="eyebrow mb-1">Your note</div>
+							<p class="text-sm whitespace-pre-line" style="color: {C.body};">
+								{currentState.note.text}
+							</p>
+						</div>
+					{/if}
+					{#key thread.currentPly}
+						<CoachPanel {thread} />
+					{/key}
+				{:else}
+					{#if !session.analysis}
+						<div class="card">
+							<button class="btn w-full" onclick={session.runAnalysis} disabled={session.analyzing}>
+								{session.analyzing ? 'Analyzing…' : 'Analyze game'}
+							</button>
+							{#if session.analyzing}
+								<div class="mt-3">
 									<div
-										class="h-full rounded-full transition-[width] duration-150"
-										style="width: {progress.total
-											? (progress.done / progress.total) * 100
-											: 0}%; background: {C.good};"
-									></div>
+										class="h-1.5 w-full overflow-hidden rounded-full"
+										style="background: {C.track};"
+									>
+										<div
+											class="h-full rounded-full transition-[width] duration-150"
+											style="width: {session.progress.total
+												? (session.progress.done / session.progress.total) * 100
+												: 0}%; background: {C.good};"
+										></div>
+									</div>
+									<p class="mt-1.5 text-xs" style="color: {C.muted};">
+										{session.progress.done} / {session.progress.total} positions
+									</p>
 								</div>
-								<p class="mt-1.5 text-xs" style="color: {C.muted};">
-									{progress.done} / {progress.total} positions
-								</p>
-							</div>
-						{/if}
-						{#if analyzeError}
-							<p class="mt-2 text-xs" style="color: {C.bad};">{analyzeError}</p>
-						{/if}
-					</div>
-				{:else if cacheNote}
-					<div class="card py-2.5">
-						<p class="text-xs" style="color: var(--warn);">{cacheNote}</p>
-					</div>
-				{/if}
+							{/if}
+							{#if session.analyzeError}
+								<p class="mt-2 text-xs" style="color: {C.bad};">{session.analyzeError}</p>
+							{/if}
+						</div>
+					{:else if session.cacheNote}
+						<div class="card py-2.5">
+							<p class="text-xs" style="color: var(--warn);">{session.cacheNote}</p>
+						</div>
+					{/if}
 
-				<!-- The notation table is the second layer: the transport controls under
-				     the board drive navigation, so this only hides the move *list*, never
-				     the ability to step through the game. Remembered across visits. -->
-				<Disclosure
-					storageKey="review:details"
-					showLabel="Show the moves"
-					hideLabel="Hide the moves"
-				>
-					<MoveList {moves} activePly={ply} {dotColor} onSelect={goTo} />
-				</Disclosure>
+					<!-- The notation table is the second layer: the transport controls under
+					     the board drive navigation, so this only hides the move *list*, never
+					     the ability to step through the game. Remembered across visits. -->
+					<Disclosure
+						storageKey="review:details"
+						showLabel="Show the moves"
+						hideLabel="Hide the moves"
+					>
+						<MoveList {moves} activePly={ply} {dotColor} onSelect={goTo} {momentPlies} />
+					</Disclosure>
+				{/if}
 			</aside>
 		</div>
 	</main>
@@ -531,10 +587,48 @@
 	}
 	@media (pointer: coarse) {
 		.branch-enter,
+		.talk,
+		.regen,
 		.btn,
 		.icon-btn {
 			min-height: 2.75rem;
 		}
+	}
+
+	/* Quiet "regenerate this explanation" control under the prose. */
+	.regen {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		color: var(--text-muted);
+		transition: color var(--dur-fast);
+	}
+	.regen:hover {
+		color: var(--text);
+	}
+	.regen:disabled {
+		opacity: 0.6;
+		cursor: default;
+	}
+
+	/* The primary move action — hand it to the coach. */
+	.talk {
+		display: flex;
+		width: 100%;
+		align-items: center;
+		justify-content: center;
+		gap: 0.4rem;
+		border-radius: 0.6rem;
+		border: 1px solid transparent;
+		background: var(--brand);
+		padding: 0.55rem 0.9rem;
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--bg);
+		transition: filter var(--dur);
+	}
+	.talk:hover {
+		filter: brightness(1.05);
 	}
 
 	.icon-btn {

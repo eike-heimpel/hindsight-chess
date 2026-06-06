@@ -4,7 +4,7 @@ import type { EngineEval } from '$lib/engine/engine';
 import type { ReviewGame } from '$lib/review/types';
 import type { GameAnalysis } from '$lib/review/analysis';
 import type { CoachTurnRequest, CoachTurnResponse } from '$lib/review/coach/types';
-import { createCoachThread } from './coachThread.svelte';
+import { createCoachThread, type ThreadState } from './coachThread.svelte';
 
 /**
  * The capability the rune module unlocks: the guided conversation — picking a
@@ -275,5 +275,115 @@ describe('createCoachThread', () => {
 		expect(t.currentPly).toBe(null);
 		expect(t.messages).toHaveLength(0);
 		expect(t.choices).toHaveLength(0);
+	});
+
+	/** Records every persist call, for the autosave assertions. */
+	function fakePersist() {
+		const calls: { ply: number; thread: ThreadState }[] = [];
+		const persist = (ply: number, thread: ThreadState) => calls.push({ ply, thread });
+		return { persist, calls };
+	}
+
+	it('persists the thread after a turn with the ply + open status', async () => {
+		const d = fakeDiscuss({ learnings: [{ level: 'principle', point: 'take the center' }] });
+		const p = fakePersist();
+		const t = createCoachThread({
+			game: makeGame(),
+			analysis,
+			variant: 'A',
+			discuss: d.discuss,
+			evaluate: fakeEngine([ev(20, 'e2e4')]).evaluate,
+			persist: p.persist
+		});
+		await t.open(1); // variant A fires the opening turn → one persist
+		await flush();
+		expect(p.calls).toHaveLength(1);
+		expect(p.calls[0].ply).toBe(1);
+		expect(p.calls[0].thread.status).toBe('open');
+		expect(p.calls[0].thread.messages).toHaveLength(1);
+		expect(p.calls[0].thread.learnings).toEqual([{ level: 'principle', point: 'take the center' }]);
+	});
+
+	it('persists status "wrapped" once the coach signals wrap-up', async () => {
+		const d = fakeDiscuss({ wrapUp: true });
+		const p = fakePersist();
+		const t = createCoachThread({
+			game: makeGame(),
+			analysis,
+			variant: 'B',
+			discuss: d.discuss,
+			evaluate: fakeEngine([ev(20, 'e2e4')]).evaluate,
+			persist: p.persist
+		});
+		await t.open(1);
+		await flush();
+		await t.answer('center'); // wrapUp:true → persisted as wrapped
+		await flush();
+		expect(p.calls[p.calls.length - 1].thread.status).toBe('wrapped');
+	});
+
+	it('finish() persists status "wrapped" with the final messages', async () => {
+		const d = fakeDiscuss();
+		const p = fakePersist();
+		const t = createCoachThread({
+			game: makeGame(),
+			analysis,
+			variant: 'A',
+			discuss: d.discuss,
+			evaluate: fakeEngine([ev(20, 'e2e4')]).evaluate,
+			persist: p.persist
+		});
+		await t.open(1);
+		await flush();
+		p.calls.length = 0; // ignore the turn autosave; assert finish's write
+		t.finish();
+		expect(p.calls).toHaveLength(1);
+		expect(p.calls[0].thread.status).toBe('wrapped');
+		expect(p.calls[0].thread.messages).toHaveLength(1);
+	});
+
+	it('resumes a saved thread on open: seeds messages, does NOT re-fire the opener', async () => {
+		const d = fakeDiscuss();
+		const saved: ThreadState = {
+			messages: [
+				{ role: 'coach', content: 'why this move?' },
+				{ role: 'player', content: 'for the center' }
+			],
+			learnings: [{ level: 'principle', point: 'take the center' }],
+			status: 'open'
+		};
+		const t = createCoachThread({
+			game: makeGame(),
+			analysis,
+			variant: 'A', // would normally fire intent 'open'
+			discuss: d.discuss,
+			evaluate: fakeEngine([ev(20, 'e2e4')]).evaluate,
+			loadThread: (ply) => (ply === 1 ? saved : undefined)
+		});
+		await t.open(1);
+		await flush();
+		// Resume, not restart: no opening turn was sent.
+		expect(d.reqs.find((r) => r.intent === 'open')).toBeUndefined();
+		expect(d.reqs).toHaveLength(0);
+		expect(t.messages).toEqual(saved.messages);
+		expect(t.learnings[0]?.learnings).toEqual(saved.learnings);
+	});
+
+	it('resumed wrapped thread sets wrapUpReady', async () => {
+		const t = createCoachThread({
+			game: makeGame(),
+			analysis,
+			variant: 'A',
+			discuss: fakeDiscuss().discuss,
+			evaluate: fakeEngine([ev(20, 'e2e4')]).evaluate,
+			loadThread: () => ({
+				messages: [{ role: 'coach', content: 'wrapped up' }],
+				learnings: [],
+				status: 'wrapped'
+			})
+		});
+		await t.open(1);
+		await flush();
+		expect(t.wrapUpReady).toBe(true);
 	});
 });

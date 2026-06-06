@@ -223,12 +223,6 @@
 			title: 'Your stats',
 			blurb: 'Accuracy, openings, where your time goes — dig in.',
 			count: null as number | null
-		},
-		{
-			href: '/review/coach',
-			title: 'Talk it through with the coach',
-			blurb: 'Pick a moment, share your read, and work out what you missed.',
-			count: null as number | null
 		}
 	]);
 </script>

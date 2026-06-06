@@ -213,6 +213,10 @@ export async function clearNote(userId: string, ref: MoveRef): Promise<void> {
 	await unsetFacet(userId, ref, 'note');
 }
 
+export async function clearThread(userId: string, ref: MoveRef): Promise<void> {
+	await unsetFacet(userId, ref, 'thread');
+}
+
 /** Remove one move's state entirely. */
 export async function clearMove(userId: string, ref: MoveRef): Promise<void> {
 	const c = await collection();
