@@ -2,7 +2,7 @@ import { dev } from '$app/environment';
 import { betterAuth } from 'better-auth';
 import { mongodbAdapter } from 'better-auth/adapters/mongodb';
 import { magicLink } from 'better-auth/plugins/magic-link';
-import { getMongoDb } from './db.ts';
+import { currentEntry, getMongoDb } from './db.ts';
 import { getBetterAuthSecret, getBetterAuthUrl, useBetterAuth } from './env.ts';
 import { sendMagicLinkEmail } from './email.ts';
 
@@ -43,10 +43,18 @@ type Auth = ReturnType<typeof createAuth>;
 export type AuthUser = Auth['$Infer']['Session']['user'];
 export type AuthSession = Auth['$Infer']['Session']['session'];
 
-let cached: Auth | null | undefined;
+let cached: { auth: Auth; entry: object } | undefined;
 
+/**
+ * The cached instance holds a `Db` bound to one MongoClient, so it is only
+ * valid while that client is. `db.ts` drops its client on a failed connect —
+ * keying the cache on the entry identity means we rebuild against the fresh
+ * client instead of reusing a permanently closed topology.
+ */
 export function getAuth(): Auth | null {
-	if (cached !== undefined) return cached;
-	cached = useBetterAuth() ? createAuth() : null;
-	return cached;
+	if (!useBetterAuth()) return null;
+	const entry = currentEntry();
+	if (cached?.entry === entry) return cached.auth;
+	cached = { auth: createAuth(), entry };
+	return cached.auth;
 }

@@ -35,7 +35,18 @@ function ensureEntry(): NonNullable<Cached> {
 	slot.value = entry;
 	// Don't poison the cache on a transient connect failure — clear our slot if
 	// it still points at this entry, so the next call retries with a fresh client.
-	dbPromise.catch(() => {
+	// Log the reason: a failed connect leaves the client's topology closed, so
+	// every later op on it throws a generic `MongoTopologyClosedError` that hides
+	// the actual cause (bad credentials, IP not allowlisted, DNS). This is the
+	// only place the real error is observable.
+	dbPromise.catch((err: unknown) => {
+		console.error(
+			JSON.stringify({
+				event: 'mongo_connect_failed',
+				name: err instanceof Error ? err.name : 'unknown',
+				message: err instanceof Error ? err.message : String(err)
+			})
+		);
 		if (cache().value === entry) cache().value = undefined;
 	});
 	return entry;
@@ -46,13 +57,24 @@ export async function getDb(): Promise<Db> {
 }
 
 /**
- * Synchronous Db handle off the shared singleton client. The Node driver
- * auto-connects on first operation, so this is safe before `connect()` resolves
- * — used by Better Auth's `mongodbAdapter`, which needs a `Db` synchronously at
- * construction. Reuses the same client (and pool) as `getDb()`.
+ * Synchronous Db handle off the shared singleton client — used by Better Auth's
+ * `mongodbAdapter`, which needs a `Db` at construction. Reuses the same client
+ * (and pool) as `getDb()`.
+ *
+ * The returned handle is bound to ONE client, so it must not be cached beyond
+ * the current db entry: a failed `client.connect()` closes the topology but
+ * leaves `client.topology` non-null, which makes the driver skip its
+ * auto-connect and throw `MongoTopologyClosedError` on every later op forever.
+ * `currentEntry` lets callers detect that the client was replaced and rebuild.
  */
 export function getMongoDb(): Db {
 	return ensureEntry().client.db(getMongoDbName());
+}
+
+/** Identity of the live client entry. Callers that cache a `getMongoDb()`
+ *  handle compare this to know when their handle went stale. */
+export function currentEntry(): object {
+	return ensureEntry();
 }
 
 /**
